@@ -1,0 +1,62 @@
+export const maintenance = [
+  {
+    "maintId": "maint-1",
+    "appliance": "Daikin Inverter AC (Living Room)",
+    "serviceId": "srv-3",
+    "serviceName": "AC Jet Wash & Comprehensive Service",
+    "providerId": "prov-2",
+    "providerName": "FrostTech AC Solutions",
+    "technicianName": "S. Murugan",
+    "frequency": "Quarterly",
+    "lastServiceDate": "2026-06-20",
+    "nextServiceDate": "2026-09-24",
+    "status": "Due Soon",
+    "workHistory": "Coil chemical jet cleaned, 4.2 Amp full load tested.",
+    "warranty": "30-Day Work Warranty"
+  },
+  {
+    "maintId": "maint-2",
+    "appliance": "Kent Grand RO Water Purifier",
+    "serviceId": "srv-6",
+    "serviceName": "RO Water Purifier Filter & Membrane Service",
+    "providerId": "prov-2",
+    "providerName": "FrostTech AC Solutions",
+    "technicianName": "S. Murugan",
+    "frequency": "Quarterly",
+    "lastServiceDate": "2026-09-18",
+    "nextServiceDate": "2026-12-18",
+    "status": "Scheduled",
+    "workHistory": "Sediment & carbon cartridge replaced, TDS calibrated to 75 ppm.",
+    "warranty": "90-Day Filter Integrity Warranty"
+  },
+  {
+    "maintId": "maint-3",
+    "appliance": "Luminous 150Ah Inverter & Tubular Battery",
+    "serviceId": "srv-77",
+    "serviceName": "Inverter & Tubular Battery Overhaul",
+    "providerId": "prov-1",
+    "providerName": "Kumar Electricals",
+    "technicianName": "K. Arumugam",
+    "frequency": "Bi-annual",
+    "lastServiceDate": "2026-04-10",
+    "nextServiceDate": "2026-10-10",
+    "status": "Active",
+    "workHistory": "De-ionized water refilled, terminal petroleum jelly coated, 850VA cutoff test passed.",
+    "warranty": "6-Month Battery Maintenance Warranty"
+  },
+  {
+    "maintId": "maint-4",
+    "appliance": "1000L Overhead Water Tank",
+    "serviceId": "srv-35",
+    "serviceName": "Overhead & Underground Water Tank Cleaning",
+    "providerId": "prov-4",
+    "providerName": "SparklePro Commercial Cleaning & Pest Works",
+    "technicianName": "M. Sundar",
+    "frequency": "Bi-annual",
+    "lastServiceDate": "2026-05-15",
+    "nextServiceDate": "2026-11-15",
+    "status": "Active",
+    "workHistory": "High-pressure descaling, sludge suction, UV sterilization treatment.",
+    "warranty": "Clean Water Standard Guarantee"
+  }
+];
