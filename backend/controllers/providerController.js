@@ -177,9 +177,20 @@ const getProviderBookings = async (req, res, next) => {
       ? { providerId: req.query.providerId }
       : { providerId: provider._id };
 
-    const { status } = req.query;
-    if (status && status !== 'ALL') {
+    const { status, category, search } = req.query;
+    if (status && status !== 'ALL' && status !== 'all') {
       filter.status = status.toUpperCase();
+    }
+    if (category && category !== 'ALL' && category !== 'all') {
+      filter.category = { $regex: new RegExp(category.trim(), 'i') };
+    }
+    if (search && search.trim()) {
+      filter.$or = [
+        { bookingNumber: { $regex: search.trim(), $options: 'i' } },
+        { serviceName: { $regex: search.trim(), $options: 'i' } },
+        { customerName: { $regex: search.trim(), $options: 'i' } },
+        { technicianName: { $regex: search.trim(), $options: 'i' } },
+      ];
     }
 
     const bookings = await Booking.find(filter)
@@ -211,6 +222,16 @@ const acceptBooking = async (req, res, next) => {
         success: false,
         message: 'Booking not found.',
       });
+    }
+
+    if (req.user.role === 'PROVIDER') {
+      const provider = await Provider.findOne({ userId: req.user._id });
+      if (provider && String(booking.providerId) !== String(provider._id)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. This booking belongs to another workshop.',
+        });
+      }
     }
 
     booking.status = 'ACCEPTED';
@@ -267,6 +288,16 @@ const rejectBooking = async (req, res, next) => {
         success: false,
         message: 'Booking not found.',
       });
+    }
+
+    if (req.user.role === 'PROVIDER') {
+      const provider = await Provider.findOne({ userId: req.user._id });
+      if (provider && String(booking.providerId) !== String(provider._id)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. This booking belongs to another workshop.',
+        });
+      }
     }
 
     booking.status = 'REJECTED';
@@ -332,11 +363,29 @@ const assignTechnician = async (req, res, next) => {
       });
     }
 
+    let provider = null;
+    if (req.user.role === 'PROVIDER') {
+      provider = await Provider.findOne({ userId: req.user._id });
+      if (provider && String(booking.providerId) !== String(provider._id)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. This booking belongs to another workshop.',
+        });
+      }
+    }
+
     const technician = await Technician.findById(technicianId);
     if (!technician) {
       return res.status(404).json({
         success: false,
         message: 'Technician not found.',
+      });
+    }
+
+    if (req.user.role === 'PROVIDER' && provider && String(technician.providerId) !== String(provider._id)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. This technician does not belong to your workshop.',
       });
     }
 
@@ -417,6 +466,98 @@ const getProviderTechnicians = async (req, res, next) => {
   }
 };
 
+/**
+ * Get profile of authenticated provider
+ * GET /api/providers/profile
+ */
+const getProviderProfile = async (req, res, next) => {
+  try {
+    let provider = await Provider.findOne({ userId: req.user._id }).populate('servicesOffered');
+
+    if (!provider) {
+      provider = await Provider.create({
+        providerId: `PRV-${Date.now().toString(36).toUpperCase()}`,
+        userId: req.user._id,
+        providerName: req.user.name || 'Workshop Owner',
+        shopName: `${req.user.name}'s Service Hub`,
+        shopAddress: '45 West Car Street, Tirunelveli - 627006',
+        city: 'Tirunelveli',
+        serviceArea: 'Tirunelveli & Suburbs (25 km radius)',
+        specialization: ['Electrical Repair', 'Home Services'],
+        experience: 5,
+        availabilityStatus: 'AVAILABLE',
+        workingHours: '08:30 AM - 08:30 PM',
+        latitude: 8.7215,
+        longitude: 77.7420,
+        verified: true,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: provider,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Update profile of authenticated provider
+ * PUT /api/providers/profile
+ */
+const updateProviderProfile = async (req, res, next) => {
+  try {
+    let provider = await Provider.findOne({ userId: req.user._id });
+
+    if (!provider) {
+      return res.status(404).json({
+        success: false,
+        message: 'Provider shop profile not found.',
+      });
+    }
+
+    const allowedFields = [
+      'shopName',
+      'providerName',
+      'shopAddress',
+      'city',
+      'serviceArea',
+      'specialization',
+      'experience',
+      'availabilityStatus',
+      'workingHours',
+      'latitude',
+      'longitude',
+      'phone',
+    ];
+
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        if (field === 'specialization' && typeof req.body[field] === 'string') {
+          provider[field] = req.body[field].split(',').map((s) => s.trim()).filter(Boolean);
+        } else if (field === 'specialization' && Array.isArray(req.body[field])) {
+          provider[field] = req.body[field];
+        } else if ((field === 'latitude' || field === 'longitude' || field === 'experience') && req.body[field] !== null) {
+          provider[field] = Number(req.body[field]);
+        } else {
+          provider[field] = req.body[field];
+        }
+      }
+    });
+
+    await provider.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Workshop profile updated successfully.',
+      data: provider,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getProviders,
   getProviderById,
@@ -427,4 +568,6 @@ module.exports = {
   rejectBooking,
   assignTechnician,
   getProviderTechnicians,
+  getProviderProfile,
+  updateProviderProfile,
 };

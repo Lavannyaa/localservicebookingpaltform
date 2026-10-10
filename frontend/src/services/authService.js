@@ -108,6 +108,82 @@ const SEEDED_ACCOUNTS = [
     mfaEnabled: true,
     securityClearance: 'Level-5 Master Governance',
     createdAt: '2026-01-01T00:00:00Z'
+  },
+  {
+    userId: 'usr-cust-02',
+    name: 'Rahul Sharma',
+    email: 'rahul.sharma@example.com',
+    passwordHash: 'Customer@2026!',
+    role: 'customer',
+    phone: '+91 98401 23456',
+    city: 'Tirunelveli',
+    address: 'Flat 402, Green Valley Apartments, Vannarpettai',
+    avatar: 'RS',
+    emailVerified: true,
+    mfaEnabled: false,
+    createdAt: '2026-01-15T09:00:00Z'
+  },
+  {
+    userId: 'usr-prov-02',
+    name: 'Senthil Kumar (FrostTech)',
+    email: '24104109@nec.edu.in',
+    passwordHash: 'Provider@2026!',
+    role: 'provider',
+    shopName: 'FrostTech AC & Electrical Solutions',
+    providerId: 'prov-2',
+    phone: '+91 98421 88712',
+    city: 'Tirunelveli',
+    address: '45 North Car Street, Vannarpettai',
+    avatar: 'FT',
+    emailVerified: true,
+    mfaEnabled: false,
+    createdAt: '2026-02-10T11:30:00Z'
+  },
+  {
+    userId: 'usr-tech-02',
+    name: 'Murugan K (Master AC Tech)',
+    email: 'murugan.tech@localserve.in',
+    passwordHash: 'Tech@2026!',
+    role: 'technician',
+    techId: 'tech-2',
+    tradeSkill: 'AC & Refrigeration Certified Master',
+    associatedShop: 'FrostTech AC & Electrical Solutions',
+    phone: '+91 98401 77654',
+    city: 'Tirunelveli',
+    avatar: 'MK',
+    badgeNumber: 'TN-4410',
+    emailVerified: true,
+    mfaEnabled: false,
+    createdAt: '2026-02-18T14:00:00Z'
+  },
+  {
+    userId: 'usr-supp-02',
+    name: 'Priya Raman (Support Desk)',
+    email: '24104096@nec.edu.in',
+    passwordHash: 'Support@2026!',
+    role: 'support',
+    department: 'Customer Grievances & Service Escalations',
+    phone: '+91 97892 44319',
+    city: 'Tirunelveli Operations',
+    avatar: 'PR',
+    emailVerified: true,
+    mfaEnabled: false,
+    createdAt: '2026-01-05T08:00:00Z'
+  },
+  {
+    userId: 'usr-admin-02',
+    name: 'Lavannya (Super Admin)',
+    email: 'lavannyaalavannyaa@gmail.com',
+    passwordHash: 'Admin@2026!',
+    role: 'admin',
+    department: 'Platform Architecture & Security',
+    phone: '+91 94431 55678',
+    city: 'Tirunelveli HQ',
+    avatar: 'LA',
+    emailVerified: true,
+    mfaEnabled: true,
+    securityClearance: 'Level-5 Master Governance',
+    createdAt: '2026-01-01T00:00:00Z'
   }
 ];
 
@@ -150,7 +226,13 @@ export const authService = {
         const mappedRole = roleMap[backendUser.role] || backendUser.role.toLowerCase();
 
         // Enforce role alignment if specific login tab was selected
-        if (role && mappedRole !== role.toLowerCase()) {
+        const selectedRoleLower = (role || '').toLowerCase();
+        const mappedRoleLower = mappedRole.toLowerCase();
+        const isRoleMatch = !role || mappedRoleLower === selectedRoleLower ||
+          (selectedRoleLower === 'support' && (mappedRoleLower === 'support' || mappedRoleLower === 'support_staff')) ||
+          (selectedRoleLower === 'support_staff' && (mappedRoleLower === 'support' || mappedRoleLower === 'support_staff'));
+
+        if (!isRoleMatch) {
           throw new Error(
             `Role Mismatch: This account is registered as '${backendUser.role}', not '${role.toUpperCase()}'. Please select the correct login tab.`
           );
@@ -355,40 +437,70 @@ export const authService = {
   },
 
   /**
-   * Exchange OAuth 2.0 Authorization Code with Identity Provider
-   * Contract: POST /api/v1/auth/oauth/exchange
+   * Exchange Google's authorization code through the backend
+   * Contract: POST /api/auth/google/exchange
    */
-  async exchangeOAuthCode({ code, codeVerifier, state, provider = 'google', role = 'customer' }) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // Create or retrieve verified OAuth user profile
-        const oauthUser = {
-          userId: `oauth-${provider}-${Date.now()}`,
-          name: 'Google Verified User',
-          email: `user.${Date.now().toString(36)}@gmail.com`,
-          role: role || 'customer',
-          avatar: 'GU',
-          phone: '+91 98765 00000',
-          city: 'Tirunelveli',
-          oauthProvider: provider,
-          emailVerified: true,
-          createdAt: new Date().toISOString()
-        };
+  async exchangeOAuthCode({ code, codeVerifier, state, provider = 'google', redirectUri }) {
+    if (provider !== 'google') {
+      throw new Error(`Unsupported OAuth provider: ${provider}`);
+    }
 
-        const token = jwtService.createSignedToken(oauthUser);
-        const refreshToken = `rt_oauth_${Date.now()}_${oauthUser.userId}`;
+    let response;
+    try {
+      response = await api.post('/auth/google/exchange', {
+        code,
+        codeVerifier,
+        state,
+        redirectUri,
+      });
+    } catch (apiErr) {
+      throw new Error(
+        apiErr.response?.data?.message ||
+          apiErr.message ||
+          'Unable to verify your Google account with the backend.'
+      );
+    }
 
-        jwtService.setTokens({ accessToken: token, refreshToken, rememberMe: true });
-        jwtService.setUser(oauthUser, true);
+    const backendData = response.data;
+    if (!backendData?.success || !backendData.token || !backendData.data) {
+      throw new Error(backendData?.message || 'Google authentication returned an invalid response.');
+    }
 
-        resolve({
-          success: true,
-          user: oauthUser,
-          token,
-          refreshToken
-        });
-      }, 250);
+    const backendUser = backendData.data;
+    const roleMap = {
+      CUSTOMER: 'customer',
+      PROVIDER: 'provider',
+      TECHNICIAN: 'technician',
+      SUPPORT_STAFF: 'support',
+      ADMIN: 'admin',
+    };
+    const normalizedRole = roleMap[backendUser.role] || backendUser.role?.toLowerCase() || 'customer';
+    const user = {
+      userId: backendUser.userId || backendUser._id,
+      name: backendUser.name,
+      email: backendUser.email,
+      role: normalizedRole,
+      phone: backendUser.phone || '',
+      city: backendUser.city || 'Tirunelveli',
+      avatar: backendUser.name ? backendUser.name.substring(0, 2).toUpperCase() : 'US',
+      emailVerified: Boolean(backendUser.isEmailVerified),
+      preferredLanguage: backendUser.preferredLanguage || 'en',
+      profileImage: backendUser.profileImage || '',
+    };
+
+    jwtService.setTokens({
+      accessToken: backendData.token,
+      refreshToken: backendData.refreshToken || null,
+      rememberMe: true,
     });
+    jwtService.setUser(user, true);
+
+    return {
+      success: true,
+      user,
+      token: backendData.token,
+      refreshToken: backendData.refreshToken || null,
+    };
   },
 
   /**

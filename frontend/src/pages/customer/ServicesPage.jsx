@@ -3,12 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import { ServiceCard } from '../../components/customer/ServiceCard';
 import { FilterPanel } from '../../components/customer/FilterPanel';
 import { SearchBar } from '../../components/customer/SearchBar';
+import { LocationBar } from '../../components/customer/LocationBar';
 import { Breadcrumb } from '../../components/common/Breadcrumb';
 import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 import { EmptyState } from '../../components/common/EmptyState';
 import { Button } from '../../components/common/Button';
 import { useServices, useRecentlyAccessed } from '../../hooks';
-import { X, Wrench } from 'lucide-react';
+import { X } from 'lucide-react';
 
 export const ServicesPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -72,16 +73,16 @@ export const ServicesPage = () => {
     if (filters.priceRange && filters.priceRange !== 'all') {
       switch (filters.priceRange) {
         case 'under-500':
-          result = result.filter(s => Number(s.basePrice) < 500);
+          result = result.filter(s => Number(s.basePrice || s.startingPrice) < 500);
           break;
         case '500-1000':
-          result = result.filter(s => Number(s.basePrice) >= 500 && Number(s.basePrice) <= 1000);
+          result = result.filter(s => Number(s.basePrice || s.startingPrice) >= 500 && Number(s.basePrice || s.startingPrice) <= 1000);
           break;
         case '1000-2500':
-          result = result.filter(s => Number(s.basePrice) > 1000 && Number(s.basePrice) <= 2500);
+          result = result.filter(s => Number(s.basePrice || s.startingPrice) > 1000 && Number(s.basePrice || s.startingPrice) <= 2500);
           break;
         case 'above-2500':
-          result = result.filter(s => Number(s.basePrice) > 2500);
+          result = result.filter(s => Number(s.basePrice || s.startingPrice) > 2500);
           break;
         default:
           break;
@@ -90,10 +91,10 @@ export const ServicesPage = () => {
 
     // Min & Max Price numeric filters if set
     if (filters.minPrice) {
-      result = result.filter(s => Number(s.basePrice) >= Number(filters.minPrice));
+      result = result.filter(s => Number(s.basePrice || s.startingPrice) >= Number(filters.minPrice));
     }
     if (filters.maxPrice) {
-      result = result.filter(s => Number(s.basePrice) <= Number(filters.maxPrice));
+      result = result.filter(s => Number(s.basePrice || s.startingPrice) <= Number(filters.maxPrice));
     }
 
     // 4. Rating Filter
@@ -104,9 +105,14 @@ export const ServicesPage = () => {
 
     // 5. Availability Filter
     if (filters.availability && filters.availability !== 'all') {
-      result = result.filter(s =>
-        s.availability && s.availability.toLowerCase() === filters.availability.toLowerCase()
-      );
+      const targetAvail = filters.availability.toLowerCase();
+      result = result.filter(s => {
+        if (s.availability === undefined || s.availability === null) return true;
+        const availStr = typeof s.availability === 'string'
+          ? s.availability.toLowerCase()
+          : (s.availability ? 'available' : 'busy');
+        return availStr === targetAvail;
+      });
     }
 
     // 6. Location Filter
@@ -117,25 +123,37 @@ export const ServicesPage = () => {
       );
     }
 
-    // 7. Workshop / Provider Filter
+    // 7. Distance Radius Filter
+    const effectiveRadius = filters.radius || filters.maxDistanceKm;
+    if (effectiveRadius && effectiveRadius !== 'all') {
+      const limitKm = Number(effectiveRadius);
+      if (!isNaN(limitKm)) {
+        result = result.filter(s => (s.distanceKm || 0) <= limitKm);
+      }
+    }
+
+    // 8. Workshop / Provider Filter
     if (providerIdParam) {
       result = result.filter(s => s.providerId === providerIdParam);
     }
 
-    // 8. Sorting
+    // 9. Sorting
     const sortBy = filters.sortBy || 'popular';
     switch (sortBy) {
+      case 'nearest':
+        result.sort((a, b) => Number(a.distanceKm || 0) - Number(b.distanceKm || 0));
+        break;
       case 'price-low':
-        result.sort((a, b) => Number(a.basePrice) - Number(b.basePrice));
+        result.sort((a, b) => Number(a.basePrice || a.startingPrice || 0) - Number(b.basePrice || b.startingPrice || 0));
         break;
       case 'price-high':
-        result.sort((a, b) => Number(b.basePrice) - Number(a.basePrice));
+        result.sort((a, b) => Number(b.basePrice || b.startingPrice || 0) - Number(a.basePrice || a.startingPrice || 0));
         break;
       case 'rating':
         result.sort((a, b) => Number(b.rating) - Number(a.rating));
         break;
       case 'name':
-        result.sort((a, b) => (a.serviceName || '').localeCompare(b.serviceName || ''));
+        result.sort((a, b) => (a.serviceName || a.name || '').localeCompare(b.serviceName || b.name || ''));
         break;
       case 'popular':
       default:
@@ -153,6 +171,7 @@ export const ServicesPage = () => {
     filters.rating,
     filters.availability !== 'all' && filters.availability,
     filters.location !== 'all' && filters.location,
+    filters.radius !== 'all' && filters.radius,
     providerIdParam
   ].filter(Boolean).length;
 
@@ -185,6 +204,15 @@ export const ServicesPage = () => {
             )}
           </div>
         </div>
+
+        {/* Nearby Provider Location Bar */}
+        <LocationBar
+          currentLocationLabel={filters.userAddress}
+          selectedCity={filters.location}
+          onLocationChange={({ lat, lng, label }) => {
+            setFilters({ lat, lng, userAddress: label });
+          }}
+        />
 
         {/* Search Bar */}
         <div style={{ marginBottom: '20px' }}>
@@ -255,7 +283,7 @@ export const ServicesPage = () => {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: '22px' }}>
             {displayedServices.map((service) => (
-              <ServiceCard key={service.serviceId} service={service} />
+              <ServiceCard key={service.serviceId || service._id} service={service} />
             ))}
           </div>
         )}

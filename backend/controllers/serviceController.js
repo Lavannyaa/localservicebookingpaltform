@@ -1,9 +1,11 @@
 const Service = require('../models/Service');
 const Category = require('../models/Category');
 const Provider = require('../models/Provider');
+const { calculateDistanceKm } = require('../utils/distance');
+const { isProviderEligible } = require('../utils/providerEligibility');
 
 /**
- * Get all services with multi-criteria search & filtering
+ * Get all services with multi-criteria search, distance & proximity filtering
  * GET /api/services
  */
 const getServices = async (req, res, next) => {
@@ -17,8 +19,12 @@ const getServices = async (req, res, next) => {
       availableOnly,
       providerId,
       sort,
+      lat,
+      lng,
+      maxDistanceKm,
+      radius,
       page = 1,
-      limit = 50,
+      limit = 100,
     } = req.query;
 
     const query = {};
@@ -33,7 +39,7 @@ const getServices = async (req, res, next) => {
     }
 
     // Category filter
-    if (category && category !== 'All') {
+    if (category && category !== 'All' && category !== 'all') {
       query.category = { $regex: new RegExp(`^${category.trim()}$`, 'i') };
     }
 
@@ -54,27 +60,96 @@ const getServices = async (req, res, next) => {
       query.availability = true;
     }
 
-    // Sort order
-    let sortOption = { rating: -1, reviewCount: -1 };
-    if (sort === 'price_asc') sortOption = { startingPrice: 1 };
-    if (sort === 'price_desc') sortOption = { startingPrice: -1 };
-    if (sort === 'rating_desc') sortOption = { rating: -1 };
-    if (sort === 'name_asc') sortOption = { name: 1 };
+    const rawServices = await Service.find(query);
+    const providers = await Provider.find({ availabilityStatus: 'AVAILABLE' });
+
+    // Customer coordinates (default to Tirunelveli center if unprovided)
+    const custLat = !isNaN(parseFloat(lat)) ? parseFloat(lat) : 8.7139;
+    const custLng = !isNaN(parseFloat(lng)) ? parseFloat(lng) : 77.7567;
+
+    // Attach Haversine distance & closest eligible provider to each service
+    let mapped = rawServices.map((srv) => {
+      const srvObj = srv.toObject();
+
+      // Find providers strictly eligible for this service category/trade
+      const matchingProviders = providers.filter((p) => isProviderEligible(p, srv));
+
+      let minDistance = Infinity;
+      let closestProvider = null;
+
+      if (matchingProviders.length > 0) {
+        matchingProviders.forEach((p) => {
+          if (p.latitude && p.longitude) {
+            const d = calculateDistanceKm(custLat, custLng, p.latitude, p.longitude);
+            if (d !== null && d < minDistance) {
+              minDistance = d;
+              closestProvider = p;
+            }
+          }
+        });
+        if (minDistance === Infinity) {
+          minDistance = 1.1;
+          closestProvider = matchingProviders[0];
+        }
+      }
+
+      return {
+        ...srvObj,
+        _id: srv._id,
+        serviceId: srv.serviceId || srv._id.toString(),
+        serviceName: srv.name,
+        name: srv.name,
+        startingPrice: srv.startingPrice,
+        basePrice: srv.startingPrice,
+        description: srv.description,
+        category: srv.category,
+        rating: srv.rating,
+        reviewCount: srv.reviewCount,
+        estimatedDuration: srv.estimatedDuration,
+        distanceKm: closestProvider ? minDistance : null,
+        providerId: closestProvider ? (closestProvider.providerId || closestProvider._id.toString()) : null,
+        providerName: closestProvider ? (closestProvider.shopName || closestProvider.providerName) : null,
+        location: closestProvider ? closestProvider.city : srv.location || 'Tirunelveli',
+        availability: srv.availability ? 'Available' : 'Busy',
+      };
+    });
+
+    // Distance Radius Filtering (2 km, 5 km, 10 km, 25 km)
+    const effectiveRadius = maxDistanceKm || radius;
+    if (effectiveRadius && effectiveRadius !== 'all') {
+      const limitKm = Number(effectiveRadius);
+      if (!isNaN(limitKm)) {
+        mapped = mapped.filter((item) => item.distanceKm <= limitKm);
+      }
+    }
+
+    // Sort Order
+    const sortKey = sort || 'popular';
+    if (sortKey === 'nearest') {
+      mapped.sort((a, b) => a.distanceKm - b.distanceKm);
+    } else if (sortKey === 'price_asc' || sortKey === 'price-low') {
+      mapped.sort((a, b) => a.startingPrice - b.startingPrice);
+    } else if (sortKey === 'price_desc' || sortKey === 'price-high') {
+      mapped.sort((a, b) => b.startingPrice - a.startingPrice);
+    } else if (sortKey === 'rating_desc' || sortKey === 'rating') {
+      mapped.sort((a, b) => b.rating - a.rating);
+    } else if (sortKey === 'name_asc' || sortKey === 'name') {
+      mapped.sort((a, b) => a.name.localeCompare(b.name));
+    } else {
+      // Popular (review count)
+      mapped.sort((a, b) => b.reviewCount - a.reviewCount);
+    }
 
     const skip = (Number(page) - 1) * Number(limit);
-    const total = await Service.countDocuments(query);
-    const services = await Service.find(query)
-      .sort(sortOption)
-      .skip(skip)
-      .limit(Number(limit));
+    const paginated = mapped.slice(skip, skip + Number(limit));
 
     res.status(200).json({
       success: true,
-      count: services.length,
-      total,
+      count: paginated.length,
+      total: mapped.length,
       page: Number(page),
-      pages: Math.ceil(total / Number(limit)),
-      data: services,
+      pages: Math.ceil(mapped.length / Number(limit)),
+      data: paginated,
     });
   } catch (err) {
     next(err);
@@ -101,19 +176,21 @@ const getServiceById = async (req, res, next) => {
       });
     }
 
-    // Find verified providers offering this service or category in Tirunelveli
-    const matchingProviders = await Provider.find({
-      $or: [
-        { servicesOffered: service._id },
-        { specialization: { $in: [service.category, service.name] } },
-      ],
-      availabilityStatus: 'AVAILABLE',
-    }).limit(6);
+    // Find verified providers strictly eligible for this service category or trade
+    const allProviders = await Provider.find({ availabilityStatus: 'AVAILABLE' });
+    const matchingProviders = allProviders.filter((p) => isProviderEligible(p, service));
+    const primaryProvider = matchingProviders[0] || null;
 
     res.status(200).json({
       success: true,
       data: {
         ...service.toObject(),
+        serviceId: service.serviceId || service._id.toString(),
+        serviceName: service.name,
+        startingPrice: service.startingPrice,
+        basePrice: service.startingPrice,
+        providerId: primaryProvider ? (primaryProvider.providerId || primaryProvider._id.toString()) : null,
+        providerName: primaryProvider ? (primaryProvider.shopName || primaryProvider.providerName) : null,
         nearbyProviders: matchingProviders,
       },
     });

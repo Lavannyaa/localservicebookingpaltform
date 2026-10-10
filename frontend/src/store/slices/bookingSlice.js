@@ -64,9 +64,13 @@ const bookingSlice = createSlice({
       })
       .addCase(changeBookingStatus.fulfilled, (state, action) => {
         const updated = action.payload;
-        state.bookings = state.bookings.map(b => b.bookingId === updated.bookingId ? updated : b);
-        if (state.currentBooking && state.currentBooking.bookingId === updated.bookingId) {
-          state.currentBooking = updated;
+        if (!updated) return;
+        const matchId = (b) => (b._id && updated._id && b._id.toString() === updated._id.toString()) ||
+                              (b.bookingId && b.bookingId === updated.bookingId) ||
+                              (b.bookingNumber && b.bookingNumber === updated.bookingNumber);
+        state.bookings = state.bookings.map(b => matchId(b) ? { ...b, ...updated } : b);
+        if (state.currentBooking && matchId(state.currentBooking)) {
+          state.currentBooking = { ...state.currentBooking, ...updated };
         }
       });
   }

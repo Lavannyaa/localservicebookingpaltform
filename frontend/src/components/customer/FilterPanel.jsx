@@ -91,6 +91,20 @@ export const FilterPanel = ({
           ]}
         />
 
+        {/* Distance Filter (Radius) */}
+        <Select
+          label="Distance Radius"
+          value={filters.radius || filters.maxDistanceKm || 'all'}
+          onChange={(e) => onChange({ radius: e.target.value, maxDistanceKm: e.target.value })}
+          options={[
+            { value: 'all', label: 'All Nearby Providers' },
+            { value: '2', label: 'Within 2 km' },
+            { value: '5', label: 'Within 5 km' },
+            { value: '10', label: 'Within 10 km' },
+            { value: '25', label: 'Within 25 km' }
+          ]}
+        />
+
         {/* Location Filter */}
         <Select
           label="Service Hub"
@@ -112,6 +126,7 @@ export const FilterPanel = ({
           value={filters.sortBy || 'popular'}
           onChange={(e) => onChange({ sortBy: e.target.value })}
           options={[
+            { value: 'nearest', label: '📍 Nearest First' },
             { value: 'popular', label: 'Most Popular' },
             { value: 'rating', label: 'Highest Rated' },
             { value: 'price-low', label: 'Price: Low to High' },

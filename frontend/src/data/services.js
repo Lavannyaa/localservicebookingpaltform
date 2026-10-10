@@ -1,5 +1,69 @@
 export const services = [
   {
+    "serviceId": "srv-gar-00",
+    "serviceName": "Potted Plant Maintenance, Soil Aeration & Organic Fertilization",
+    "category": "Gardening",
+    "description": "Doorstep pot soil loosen/aeration, organic vermicompost top dressing, neem oil leaf spray, and dried leaf pruning.",
+    "basePrice": 249,
+    "estimatedDuration": "45 mins",
+    "rating": 4.9,
+    "reviewCount": 145,
+    "availability": "Available",
+    "providerId": "prov-1",
+    "providerName": "Green Thumb & Palayamkottai Plant Care",
+    "location": "Tirunelveli",
+    "status": "active",
+    "benefits": [
+      "Organic Vermicompost Feed",
+      "Neem Oil Pest Protection",
+      "Doorstep Plant Care",
+      "30-Day Growth Guarantee"
+    ],
+    "availableSlots": [
+      "09:00 AM - 10:30 AM",
+      "11:00 AM - 12:30 PM",
+      "02:00 PM - 03:30 PM"
+    ],
+    "checklist": [
+      "Pot soil aeration & loosening",
+      "Vermicompost nutrient top-up",
+      "Organic neem oil spray for pest prevention",
+      "Dead leaf trimming and pot wiping"
+    ]
+  },
+  {
+    "serviceId": "srv-gar-05",
+    "serviceName": "Balcony Garden Lawn & Hedge Scissors Trimming",
+    "category": "Gardening",
+    "description": "Precision hand-shear trimming of balcony hedges, potted bonsai shaping, and dead stem removal.",
+    "basePrice": 399,
+    "estimatedDuration": "60 mins",
+    "rating": 4.8,
+    "reviewCount": 98,
+    "availability": "Available",
+    "providerId": "prov-1",
+    "providerName": "Palayamkottai Garden Care",
+    "location": "Tirunelveli",
+    "status": "active",
+    "benefits": [
+      "Precision Shearing",
+      "Fallen Leaf Cleanup",
+      "Growth Spray Included",
+      "Certified Horticulturist"
+    ],
+    "availableSlots": [
+      "09:00 AM - 10:30 AM",
+      "11:00 AM - 12:30 PM",
+      "02:00 PM - 03:30 PM"
+    ],
+    "checklist": [
+      "Balcony plant alignment",
+      "Hand-shear hedge trimming",
+      "Fallen foliage sweep & disposal",
+      "Plant growth spray"
+    ]
+  },
+  {
     "serviceId": "srv-1",
     "serviceName": "Plumbing Repair & Pipe Leakage Fix",
     "category": "Plumbing",

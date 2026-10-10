@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { bookingService } from '../../services/bookingService';
+import { providerService } from '../../services/providerService';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
@@ -9,14 +10,14 @@ import {
   Clock, User, CheckSquare, FileText, Wrench, ShieldCheck, ChevronRight
 } from 'lucide-react';
 
-const CURRENT_PROVIDER_ID = 'prov-1';
-const CURRENT_SHOP_NAME = 'Kumar Electricals';
+const CURRENT_SHOP_NAME = 'FrostTech AC & Electrical';
 
 export const ProviderBookingsPage = () => {
   const { trackItem } = useRecentlyAccessed();
   const [bookings, setBookings] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [statusFilter, setStatusFilter] = useState('All');
+  const [categoryFilter, setCategoryFilter] = useState('All');
   const [search, setSearch] = useState('');
 
   // Selected Booking Details / Tracking Modal
@@ -27,12 +28,8 @@ export const ProviderBookingsPage = () => {
   const [notification, setNotification] = useState('');
 
   useEffect(() => {
-    bookingService.getBookings().then(data => {
-      // Filter bookings for Kumar Electricals or show all
-      const shopBookings = data.filter(
-        b => b.providerId === CURRENT_PROVIDER_ID || b.providerName === CURRENT_SHOP_NAME
-      );
-      setBookings(shopBookings.length > 0 ? shopBookings : data);
+    providerService.getProviderBookings().then(data => {
+      setBookings(data || []);
     });
   }, []);
 
@@ -41,17 +38,21 @@ export const ProviderBookingsPage = () => {
     if (statusFilter !== 'All') {
       res = res.filter(b => (b.status || '').toLowerCase() === statusFilter.toLowerCase());
     }
+    if (categoryFilter !== 'All') {
+      res = res.filter(b => (b.category || '').toLowerCase().includes(categoryFilter.toLowerCase()));
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       res = res.filter(b =>
         (b.bookingNumber && b.bookingNumber.toLowerCase().includes(q)) ||
         (b.customerName && b.customerName.toLowerCase().includes(q)) ||
         (b.serviceName && b.serviceName.toLowerCase().includes(q)) ||
+        (b.category && b.category.toLowerCase().includes(q)) ||
         (b.technicianName && b.technicianName.toLowerCase().includes(q))
       );
     }
     setFiltered(res);
-  }, [statusFilter, search, bookings]);
+  }, [statusFilter, categoryFilter, search, bookings]);
 
   const showNotice = (msg) => {
     setNotification(msg);
@@ -188,7 +189,28 @@ export const ProviderBookingsPage = () => {
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', alignItems: 'center' }}>
+          <select
+            value={categoryFilter}
+            onChange={e => setCategoryFilter(e.target.value)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '20px',
+              border: '1px solid var(--border-light)',
+              background: 'var(--bg-muted)',
+              color: 'var(--text-secondary)',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              outline: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="All">All Categories</option>
+            {Array.from(new Set(bookings.map(b => b.category).filter(Boolean))).map((cat, idx) => (
+              <option key={idx} value={cat}>{cat}</option>
+            ))}
+          </select>
+
           {statuses.map(st => (
             <button
               key={st}

@@ -4,6 +4,7 @@ const Provider = require('../models/Provider');
 const Checklist = require('../models/Checklist');
 const Notification = require('../models/Notification');
 const { getIO } = require('../sockets/socketHandler');
+const { isProviderEligible } = require('../utils/providerEligibility');
 
 /**
  * Create a new service booking
@@ -48,6 +49,20 @@ const createBooking = async (req, res, next) => {
       provider = await Provider.findOne({
         $or: [{ providerId }, ...(providerId.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: providerId }] : [])],
       });
+
+      if (provider && !isProviderEligible(provider, service)) {
+        return res.status(422).json({
+          success: false,
+          message: `The selected provider (${provider.shopName}) does not offer ${service.category} services. Please choose an eligible provider.`,
+        });
+      }
+    }
+
+    if (!provider) {
+      // Auto-assign eligible provider if available
+      const allProviders = await Provider.find({ availabilityStatus: 'AVAILABLE' });
+      const eligible = allProviders.filter(p => isProviderEligible(p, service));
+      provider = eligible[0] || null;
     }
 
     const bookingNumber = `BK-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
@@ -59,7 +74,7 @@ const createBooking = async (req, res, next) => {
       customerPhone: customerPhone || req.user.phone || '+91 98401 23456',
       customerEmail: req.user.email,
       providerId: provider ? provider._id : null,
-      shopName: provider ? provider.shopName : 'FrostTech AC & Electrical Solutions',
+      shopName: provider ? provider.shopName : 'No eligible provider assigned',
       serviceId: service._id,
       serviceName: service.name,
       category: service.category,
@@ -163,9 +178,18 @@ const getBookings = async (req, res, next) => {
       if (provider) filter.providerId = provider._id;
     }
 
-    const { status, search } = req.query;
-    if (status && status !== 'ALL') {
+    const { status, category, serviceId, city, search } = req.query;
+    if (status && status !== 'ALL' && status !== 'all') {
       filter.status = status.toUpperCase();
+    }
+    if (category && category !== 'ALL' && category !== 'all') {
+      filter.category = { $regex: new RegExp(category.trim(), 'i') };
+    }
+    if (city && city !== 'ALL' && city !== 'all') {
+      filter.city = { $regex: new RegExp(city.trim(), 'i') };
+    }
+    if (serviceId) {
+      filter.serviceId = serviceId;
     }
 
     if (search && search.trim()) {
@@ -173,6 +197,8 @@ const getBookings = async (req, res, next) => {
         { bookingNumber: { $regex: search.trim(), $options: 'i' } },
         { serviceName: { $regex: search.trim(), $options: 'i' } },
         { customerName: { $regex: search.trim(), $options: 'i' } },
+        { shopName: { $regex: search.trim(), $options: 'i' } },
+        { category: { $regex: search.trim(), $options: 'i' } },
       ];
     }
 
@@ -293,6 +319,50 @@ const cancelBooking = async (req, res, next) => {
 };
 
 /**
+ * Update booking status
+ * PUT /api/bookings/:id/status
+ */
+const updateBookingStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status, notes } = req.body;
+
+    const booking = await Booking.findOne({
+      $or: [{ bookingNumber: id }, ...(id.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: id }] : [])],
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found.',
+      });
+    }
+
+    const nextStatus = String(status || '').toUpperCase().trim();
+    booking.status = nextStatus;
+    booking.statusHistory.push({
+      status: nextStatus,
+      timestamp: new Date(),
+      notes: notes || `Status updated to ${nextStatus}`,
+    });
+
+    if (nextStatus === 'SERVICE_COMPLETED') {
+      booking.checklistProgress = 100;
+    }
+
+    await booking.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Booking status updated to ${nextStatus}`,
+      data: booking,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * 1-Click "Book Again" from completed service / maintenance reminder
  * POST /api/bookings/:id/rebook
  */
@@ -373,6 +443,7 @@ module.exports = {
   createBooking,
   getBookings,
   getBookingById,
+  updateBookingStatus,
   cancelBooking,
   rebookBooking,
 };

@@ -35,8 +35,8 @@ export const Login = () => {
     {
       role: 'customer',
       label: 'Customer',
-      email: 'rahul.sharma@localserve.com',
-      password: 'Rahul@LocalServe2026!',
+      email: 'rahul.sharma@example.com',
+      password: 'Customer@2026!',
       icon: User,
       dashboard: '/customer/dashboard',
       tagline: 'Local Consumer & Service Booking'
@@ -44,17 +44,17 @@ export const Login = () => {
     {
       role: 'provider',
       label: 'Service Provider',
-      email: 'ravi.kumar@localserve.com',
-      password: 'Kumar@Electric2026!',
+      email: '24104109@nec.edu.in',
+      password: 'Provider@2026!',
       icon: Building2,
       dashboard: '/provider/dashboard',
-      tagline: 'Kumar Electricals & Rewinding'
+      tagline: 'FrostTech AC & Electrical Solutions'
     },
     {
       role: 'technician',
       label: 'Technician',
-      email: 's.murugan@localserve.com',
-      password: 'Murugan@Tech2026!',
+      email: 'murugan.tech@localserve.in',
+      password: 'Tech@2026!',
       icon: HardHat,
       dashboard: '/technician/dashboard',
       tagline: 'Certified Field Specialist'
@@ -62,8 +62,8 @@ export const Login = () => {
     {
       role: 'support',
       label: 'Support Staff',
-      email: 'ananya.support@localserve.com',
-      password: 'Support@Ops2026!',
+      email: '24104096@nec.edu.in',
+      password: 'Support@2026!',
       icon: Headphones,
       dashboard: '/support/dashboard',
       tagline: 'Dispute Resolution & Operations'
@@ -71,8 +71,8 @@ export const Login = () => {
     {
       role: 'admin',
       label: 'Administrator',
-      email: 'admin.governance@localserve.com',
-      password: 'Admin@Governance2026!',
+      email: 'lavannyaalavannyaa@gmail.com',
+      password: 'Admin@2026!',
       icon: ShieldCheck,
       dashboard: '/admin/dashboard',
       tagline: 'Platform Governance & Security'
@@ -93,22 +93,11 @@ export const Login = () => {
     setOauthLoading(true);
 
     try {
-      const { authorizationUrl } =
-        await oauthService.createAuthorizationRequest(
-          provider,
-          selectedRole
-        );
-
-      // Go to the REAL Google OAuth login page
-      window.location.href = authorizationUrl;
-
+      const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      window.location.href = `${backendUrl}/auth/google`;
     } catch (err) {
       console.error('OAuth initialization failed:', err);
-
-      setLocalError(
-        err?.message || 'Unable to start Google authentication.'
-      );
-
+      setLocalError(err?.message || 'Unable to start Google authentication.');
       setOauthLoading(false);
     }
   };
@@ -134,8 +123,16 @@ export const Login = () => {
       }).unwrap();
 
       if (result?.success || result?.user) {
-        const targetCfg = roleConfigs.find(r => r.role === (result.user?.role || selectedRole));
-        const destination = redirectPath || (targetCfg ? targetCfg.dashboard : '/home');
+        const userRole = (result.user?.role || selectedRole || '').toLowerCase();
+        const roleDashboardMap = {
+          customer: '/customer/dashboard',
+          provider: '/provider/dashboard',
+          technician: '/technician/dashboard',
+          support: '/support/dashboard',
+          support_staff: '/support/dashboard',
+          admin: '/admin/dashboard'
+        };
+        const destination = redirectPath || roleDashboardMap[userRole] || '/home';
         navigate(destination);
       }
     } catch (err) {
@@ -369,11 +366,11 @@ export const Login = () => {
                 <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.25 2.65 1.26 6.59l4.02 3.09c.95-2.83 3.6-4.93 6.72-4.93z"/>
               </svg>
               <span>
-                {oauthLoading ? 'Initiating PKCE Handshake...' : `Continue with Google (${selectedRole.toUpperCase()})`}
+                {oauthLoading ? 'Connecting to Google...' : 'Continue with Google'}
               </span>
             </button>
             <span style={{ display: 'block', textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Standard OAuth 2.0 PKCE Single Sign-On
+              New Google accounts are registered as customers.
             </span>
           </div>
 

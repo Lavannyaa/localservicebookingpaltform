@@ -23,13 +23,25 @@ export const ProtectedRoute = ({ allowedRoles = [], children }) => {
     return <Navigate to={`/login?redirect=${redirectUrl}&expired=true`} replace />;
   }
 
-  // 3. Role-Based Authorization check
-  if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
-    const getMyDashboardPath = (userRole) => {
-      switch (userRole) {
+  // 3. Role-Based Authorization check (case-insensitive & support_staff alias aware)
+  const userRole = (role || '').toLowerCase();
+  const normalizedAllowedRoles = allowedRoles.map(r => (r || '').toLowerCase());
+
+  const isAuthorized = normalizedAllowedRoles.length === 0 || normalizedAllowedRoles.some(allowed => {
+    if (allowed === userRole) return true;
+    if (allowed === 'support' && (userRole === 'support_staff' || userRole === 'support')) return true;
+    if (allowed === 'support_staff' && (userRole === 'support' || userRole === 'support_staff')) return true;
+    return false;
+  });
+
+  if (!isAuthorized) {
+    const getMyDashboardPath = (uRole) => {
+      const lower = (uRole || '').toLowerCase();
+      switch (lower) {
         case 'provider': return '/provider/dashboard';
         case 'technician': return '/technician/dashboard';
-        case 'support': return '/support/dashboard';
+        case 'support':
+        case 'support_staff': return '/support/dashboard';
         case 'admin': return '/admin/dashboard';
         default: return '/customer/dashboard';
       }

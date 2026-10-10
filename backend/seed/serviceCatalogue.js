@@ -25,6 +25,56 @@ const categoriesData = [
 ];
 
 const servicesData = [
+  // 0. Construction (4 services)
+  {
+    serviceId: 'SRV-CST-01',
+    name: 'Terrace Waterproofing & Fiber Membrane Coating',
+    category: 'Construction',
+    description: 'High-build elastomeric polymer liquid membrane with embedded glass fiber mesh for terrace slab leak prevention and solar heat reduction.',
+    startingPrice: 2499,
+    estimatedDuration: '2 - 3 Days',
+    rating: 4.9,
+    reviewCount: 168,
+    defaultChecklist: ['Terrace surface pressure jet washing', 'V-groove crack filling with polymer sealant', 'Primer coat application', '2-coat elastomeric topcoat with fiber mesh'],
+    recommendedMaintenanceIntervalMonths: 24,
+  },
+  {
+    serviceId: 'SRV-CST-02',
+    name: 'Masonry Services & Structural Brickwork Repair',
+    category: 'Construction',
+    description: 'Expert mason for brickwork extension, partition wall construction, lintel repair, and cement mortar pointing.',
+    startingPrice: 899,
+    estimatedDuration: '1 Day',
+    rating: 4.8,
+    reviewCount: 142,
+    defaultChecklist: ['Structural wall alignment check', 'Fly ash / red clay brick laying', 'Cement-sand 1:4 mortar mixing', 'Surface water curing test'],
+    recommendedMaintenanceIntervalMonths: 12,
+  },
+  {
+    serviceId: 'SRV-CST-03',
+    name: 'Tile Installation, Precision Cutting & Grouting',
+    category: 'Construction',
+    description: 'Vitrified and ceramic tile floor laying, laser spirit level alignment, polymer epoxy grouting, and edge chamfering.',
+    startingPrice: 1199,
+    estimatedDuration: '1 - 2 Days',
+    rating: 4.85,
+    reviewCount: 195,
+    defaultChecklist: ['Subfloor leveling screed check', 'Tile adhesive notched trowel spreading', 'Laser level joint spacer alignment', 'Waterproof epoxy grout filling'],
+    recommendedMaintenanceIntervalMonths: 12,
+  },
+  {
+    serviceId: 'SRV-CST-04',
+    name: 'Structural Concrete Repair & Wall Plastering',
+    category: 'Construction',
+    description: 'Chipping of deteriorated spalled concrete, anti-rust rebar coating, micro-concrete plastering, and smooth float finishing.',
+    startingPrice: 1499,
+    estimatedDuration: '1 Day',
+    rating: 4.7,
+    reviewCount: 88,
+    defaultChecklist: ['Loose concrete chipping & dust removal', 'Rebar rust converter treatment', 'Bonding agent polymer slurry coat', 'Smooth cement plaster float finish'],
+    recommendedMaintenanceIntervalMonths: 12,
+  },
+
   // 1. AC & Appliances (10 services)
   {
     serviceId: 'SRV-AC-01',
@@ -727,7 +777,31 @@ const servicesData = [
     recommendedMaintenanceIntervalMonths: 6,
   },
 
-  // 10. Gardening (4 services)
+  // 10. Gardening (6 services)
+  {
+    serviceId: 'SRV-GAR-00',
+    name: 'Potted Plant Maintenance, Soil Aeration & Organic Fertilization',
+    category: 'Gardening',
+    description: 'Doorstep pot soil loosen/aeration, organic vermicompost top dressing, neem oil leaf spray, and dried leaf pruning.',
+    startingPrice: 249,
+    estimatedDuration: '45 mins',
+    rating: 4.9,
+    reviewCount: 145,
+    defaultChecklist: ['Pot soil aeration & loosening', 'Vermicompost nutrient top-up', 'Organic neem oil spray for pest prevention', 'Dead leaf trimming and pot wiping'],
+    recommendedMaintenanceIntervalMonths: 1,
+  },
+  {
+    serviceId: 'SRV-GAR-05',
+    name: 'Balcony Garden Lawn & Hedge Scissors Trimming',
+    category: 'Gardening',
+    description: 'Precision hand-shear trimming of balcony hedges, potted bonsai shaping, and dead stem removal.',
+    startingPrice: 399,
+    estimatedDuration: '60 mins',
+    rating: 4.8,
+    reviewCount: 98,
+    defaultChecklist: ['Balcony plant alignment', 'Hand-shear hedge trimming', 'Fallen foliage sweep & disposal', 'Plant growth spray'],
+    recommendedMaintenanceIntervalMonths: 1,
+  },
   {
     serviceId: 'SRV-GAR-01',
     name: 'Lawn Mowing, Weed Eradication & Edge Trimming',

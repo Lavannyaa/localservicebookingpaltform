@@ -79,11 +79,16 @@ export const useServices = (autoFetch = false) => {
   const { services, categories, activeService, filters, loading, error } = useSelector((state) => state.service);
 
   useEffect(() => {
-    if (autoFetch && services.length === 0) {
+    if (autoFetch) {
       dispatch(fetchServices(filters));
+    }
+  }, [autoFetch, dispatch, JSON.stringify(filters)]);
+
+  useEffect(() => {
+    if (autoFetch && categories.length === 0) {
       dispatch(fetchCategories());
     }
-  }, [autoFetch, dispatch, services.length, filters]);
+  }, [autoFetch, dispatch, categories.length]);
 
   const getServices = useCallback((newFilters) => dispatch(fetchServices(newFilters)), [dispatch]);
   const getCategories = useCallback(() => dispatch(fetchCategories()), [dispatch]);

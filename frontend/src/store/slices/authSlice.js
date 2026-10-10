@@ -104,6 +104,32 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
+    setCredentials(state, action) {
+      const { user, token } = action.payload || {};
+      state.token = token || null;
+      state.tokenClaims = jwtService.decodeToken(token);
+      state.user = user || (state.tokenClaims ? {
+        id: state.tokenClaims.userId || state.tokenClaims.sub,
+        name: state.tokenClaims.name || 'Google User',
+        email: state.tokenClaims.email || '',
+        role: (state.tokenClaims.role || 'CUSTOMER').toUpperCase()
+      } : null);
+      state.role = state.user ? state.user.role : 'CUSTOMER';
+      state.isAuthenticated = !!(state.user && state.token);
+      state.loading = false;
+      state.error = null;
+      state.sessionStatus = 'active';
+      state.sessionTimeRemaining = token ? jwtService.getTokenRemainingSeconds(token) : 86400;
+
+      if (token) {
+        jwtService.setTokens({ accessToken: token, rememberMe: true });
+        localStorage.setItem('localserve_token', token);
+      }
+      if (state.user) {
+        jwtService.setUser(state.user, true);
+        localStorage.setItem('localserve_user', JSON.stringify(state.user));
+      }
+    },
     logout(state) {
       authService.logout();
       state.user = null;
@@ -254,5 +280,5 @@ const authSlice = createSlice({
   }
 });
 
-export const { logout, clearAuthError, setRole, checkSessionState, resetPasswordState } = authSlice.actions;
+export const { setCredentials, logout, clearAuthError, setRole, checkSessionState, resetPasswordState } = authSlice.actions;
 export default authSlice.reducer;

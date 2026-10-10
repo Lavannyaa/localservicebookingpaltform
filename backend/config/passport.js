@@ -12,7 +12,9 @@ const isGoogleOAuthConfigured = () => {
     clientID &&
       clientSecret &&
       clientID.trim() !== '' &&
-      clientSecret.trim() !== ''
+      clientSecret.trim() !== '' &&
+      !clientSecret.includes('your_google_client_secret') &&
+      !clientSecret.includes('your_secret_here')
   );
 };
 

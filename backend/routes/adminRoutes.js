@@ -19,6 +19,8 @@ router.get('/reports', adminController.getReports);
 
 // Admin-level queries across entities
 router.get('/bookings', bookingController.getBookings);
+router.get('/bookings/:id/eligible-providers', adminController.getEligibleProvidersForBooking);
+router.put('/bookings/:id/assign-provider', adminController.assignProviderToBooking);
 router.get('/complaints', supportController.getTickets);
 router.get('/reviews', reviewController.getReviews);
 

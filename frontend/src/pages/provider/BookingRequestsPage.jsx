@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { bookingService } from '../../services/bookingService';
-import { technicians as allTechnicians } from '../../data/technicians';
+import { useNavigate, Link } from 'react-router-dom';
+import { providerService } from '../../services/providerService';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
@@ -12,19 +11,19 @@ import {
 import { notificationService, NOTIFICATION_TYPES } from '../../services/notificationService';
 import { useRecentlyAccessed } from '../../hooks';
 
-const CURRENT_PROVIDER_ID = 'prov-1';
-const CURRENT_SHOP_NAME = 'Kumar Electricals';
+const CURRENT_SHOP_NAME = 'FrostTech AC & Electrical';
 
 export const BookingRequestsPage = () => {
   const navigate = useNavigate();
   const { trackItem } = useRecentlyAccessed();
   const [requests, setRequests] = useState([]);
+  const [shopTechnicians, setShopTechnicians] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Assignment Modal
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [selectedTechId, setSelectedTechId] = useState('tech-2');
+  const [selectedTechId, setSelectedTechId] = useState('');
 
   // Reject Modal
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -33,75 +32,58 @@ export const BookingRequestsPage = () => {
 
   const [notification, setNotification] = useState(null);
 
-  // Shop Technicians
-  const shopTechnicians = allTechnicians.filter(
-    t => t.providerId === CURRENT_PROVIDER_ID || t.shopName === CURRENT_SHOP_NAME
-  );
-
   useEffect(() => {
-    bookingService.getBookings().then(data => {
-      // Pending requests or requests awaiting dispatch
-      const pendingOrNew = data.filter(
-        b => b.status === 'Pending' || (b.status === 'Confirmed' && !b.technicianName)
+    Promise.all([
+      providerService.getProviderBookings(),
+      providerService.getProviderTechnicians()
+    ]).then(([bookingsData, techData]) => {
+      const pendingOrNew = (bookingsData || []).filter(
+        b => ['PENDING', 'ACCEPTED', 'CONFIRMED'].includes((b.status || '').toUpperCase()) && (!b.technicianName || b.status === 'PENDING')
       );
       setRequests(pendingOrNew);
+      setShopTechnicians(techData || []);
       setLoading(false);
     });
   }, []);
 
   const handleOpenAssign = (booking) => {
     setSelectedBooking(booking);
-    // Pre-select first available technician
-    const available = shopTechnicians.find(t => t.status === 'Available');
-    setSelectedTechId(available ? available.techId : shopTechnicians[0]?.techId || 'tech-2');
+    const available = shopTechnicians.find(t => (t.availabilityStatus || t.status || '').toUpperCase() === 'AVAILABLE');
+    const firstTech = available || shopTechnicians[0];
+    setSelectedTechId(firstTech ? (firstTech._id || firstTech.technicianId || firstTech.techId) : '');
     setShowAssignModal(true);
   };
 
   const handleConfirmAssign = () => {
-    if (!selectedBooking) return;
-    const tech = shopTechnicians.find(t => t.techId === selectedTechId) || shopTechnicians[0];
+    if (!selectedBooking || !selectedTechId) return;
+    const targetBookingId = selectedBooking._id || selectedBooking.bookingId;
+    const tech = shopTechnicians.find(t => String(t._id || t.technicianId || t.techId) === String(selectedTechId)) || shopTechnicians[0];
+    const techIdToPass = tech?._id || tech?.technicianId || selectedTechId;
 
-    bookingService.updateBookingStatus(
-      selectedBooking.bookingId,
-      'Technician Assigned',
-      `Assigned to certified technician ${tech.name} (${tech.phone})`
-    ).then(() => {
-      // Remove from requests list
-      setRequests(prev => prev.filter(b => b.bookingId !== selectedBooking.bookingId));
+    providerService.assignTechnician(targetBookingId, techIdToPass).then(() => {
+      setRequests(prev => prev.filter(b => (b._id || b.bookingId) !== targetBookingId));
       setShowAssignModal(false);
 
-      // Track recently accessed booking
+      const techName = tech?.technicianName || tech?.name || 'Technician';
+
       trackItem({
-        id: selectedBooking.bookingId || selectedBooking.bookingNumber,
+        id: targetBookingId,
         type: 'Booking',
         title: `${selectedBooking.bookingNumber} · ${selectedBooking.serviceName}`,
-        subtitle: `Customer: ${selectedBooking.customerName} · Assigned: ${tech.name}`,
+        subtitle: `Customer: ${selectedBooking.customerName} · Assigned: ${techName}`,
         path: '/provider/bookings',
         badge: 'Technician Assigned'
       });
 
-      // Track recently accessed customer
-      if (selectedBooking.customerName) {
-        trackItem({
-          id: `cust-${selectedBooking.customerName.replace(/\s+/g, '_')}`,
-          type: 'Customer',
-          title: selectedBooking.customerName,
-          subtitle: `${selectedBooking.customerPhone || 'Customer'} · ${selectedBooking.address || 'Address'}`,
-          path: '/provider/bookings',
-          badge: 'Customer'
-        });
-      }
-
       setNotification({
         type: 'success',
         bookingNumber: selectedBooking.bookingNumber,
-        techName: tech.name,
-        message: `Booking ${selectedBooking.bookingNumber} accepted! Assigned to ${tech.name}.`
+        techName,
+        message: `Booking ${selectedBooking.bookingNumber} assigned to ${techName} successfully!`
       });
-
-      // Trigger lifecycle notifications
-      notificationService.triggerLifecycleEvent(NOTIFICATION_TYPES.BOOKING_ACCEPTED, selectedBooking);
-      notificationService.triggerLifecycleEvent(NOTIFICATION_TYPES.TECH_ASSIGNED, { ...selectedBooking, technicianName: tech.name });
+    }).catch(err => {
+      console.error('Technician assignment failed:', err);
+      alert(err.response?.data?.message || err.message || 'Assignment failed.');
     });
   };
 
@@ -112,13 +94,9 @@ export const BookingRequestsPage = () => {
 
   const handleConfirmReject = () => {
     if (!rejectBooking) return;
-    bookingService.updateBookingStatus(
-      rejectBooking.bookingId,
-      'Cancelled',
-      `Declined by workshop: ${rejectReason}`
-    ).then(() => {
-      notificationService.triggerLifecycleEvent(NOTIFICATION_TYPES.BOOKING_CANCELLED, rejectBooking);
-      setRequests(prev => prev.filter(b => b.bookingId !== rejectBooking.bookingId));
+    const targetBookingId = rejectBooking._id || rejectBooking.bookingId;
+    providerService.rejectBooking(targetBookingId, rejectReason).then(() => {
+      setRequests(prev => prev.filter(b => (b._id || b.bookingId) !== targetBookingId));
       setShowRejectModal(false);
       setNotification({
         type: 'info',
@@ -310,17 +288,20 @@ export const BookingRequestsPage = () => {
             </div>
 
             <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-              Select a certified technician from {CURRENT_SHOP_NAME} to execute this job:
+              Select a certified technician belonging to your workshop to execute this job:
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {shopTechnicians.map(tech => {
-                const isSelected = selectedTechId === tech.techId;
-                const isAvailable = tech.status === 'Available';
+                const idVal = tech._id || tech.technicianId || tech.techId;
+                const isSelected = String(selectedTechId) === String(idVal);
+                const statusStr = tech.availabilityStatus || tech.status || 'AVAILABLE';
+                const isAvailable = statusStr.toUpperCase() === 'AVAILABLE';
+                const nameStr = tech.technicianName || tech.name || 'Technician';
 
                 return (
                   <label
-                    key={tech.techId}
+                    key={idVal}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -338,28 +319,23 @@ export const BookingRequestsPage = () => {
                         type="radio"
                         name="tech"
                         checked={isSelected}
-                        onChange={() => setSelectedTechId(tech.techId)}
+                        onChange={() => setSelectedTechId(idVal)}
                         style={{ width: '18px', height: '18px' }}
                       />
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontWeight: 800, fontSize: '0.94rem' }}>{tech.name}</span>
+                          <span style={{ fontWeight: 800, fontSize: '0.94rem' }}>{nameStr}</span>
                           <span className={`badge ${isAvailable ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.72rem' }}>
-                            {tech.status}
+                            {statusStr}
                           </span>
                         </div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                          {tech.specialization} · {tech.experience} Exp
+                          {tech.specialization} · {tech.experience || 5} Yrs Exp
                         </div>
                         <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                          ★ {tech.rating} · {tech.completedJobs} Completed Jobs · {tech.phone}
+                          ★ {tech.rating || 4.9} · {tech.phone || 'Contact Verified'}
                         </div>
                       </div>
-                    </div>
-
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block' }}>Jobs Today</span>
-                      <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{tech.assignedToday} active</strong>
                     </div>
                   </label>
                 );

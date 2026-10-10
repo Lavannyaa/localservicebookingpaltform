@@ -8,6 +8,7 @@ const Booking = require('../models/Booking');
 const Complaint = require('../models/Complaint');
 const Review = require('../models/Review');
 const Maintenance = require('../models/Maintenance');
+const { isProviderEligible } = require('../utils/providerEligibility');
 
 /**
  * Get real-time Admin Dashboard statistics directly from MongoDB
@@ -215,10 +216,145 @@ const getReports = async (req, res, next) => {
   }
 };
 
+/**
+ * Get eligible providers for a booking based on requested service & location
+ * GET /api/admin/bookings/:id/eligible-providers
+ */
+const getEligibleProvidersForBooking = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const booking = await Booking.findOne({
+      $or: [{ bookingNumber: id }, ...(id.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: id }] : [])],
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found.',
+      });
+    }
+
+    const service = await Service.findOne({
+      $or: [{ _id: booking.serviceId }, { name: booking.serviceName }],
+    });
+
+    const mockServiceObj = service || {
+      _id: booking.serviceId,
+      name: booking.serviceName,
+      category: booking.category,
+    };
+
+    const allProviders = await Provider.find().populate('servicesOffered');
+    const eligibleProviders = allProviders.filter((p) => isProviderEligible(p, mockServiceObj));
+
+    res.status(200).json({
+      success: true,
+      count: eligibleProviders.length,
+      data: eligibleProviders,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Assign an eligible provider shop to a booking
+ * PUT /api/admin/bookings/:id/assign-provider
+ */
+const assignProviderToBooking = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { providerId } = req.body;
+
+    if (!providerId) {
+      return res.status(422).json({
+        success: false,
+        message: 'Provider ID is required.',
+      });
+    }
+
+    const booking = await Booking.findOne({
+      $or: [{ bookingNumber: id }, ...(id.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: id }] : [])],
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found.',
+      });
+    }
+
+    const provider = await Provider.findOne({
+      $or: [{ providerId }, ...(providerId.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: providerId }] : [])],
+    }).populate('servicesOffered');
+
+    if (!provider) {
+      return res.status(404).json({
+        success: false,
+        message: 'Selected provider shop not found.',
+      });
+    }
+
+    const service = await Service.findOne({
+      $or: [{ _id: booking.serviceId }, { name: booking.serviceName }],
+    });
+
+    const mockServiceObj = service || {
+      _id: booking.serviceId,
+      name: booking.serviceName,
+      category: booking.category,
+    };
+
+    // Strict Validation: Prevent assignment to providers who do not offer the requested service
+    if (!isProviderEligible(provider, mockServiceObj)) {
+      return res.status(422).json({
+        success: false,
+        message: `Assignment rejected: Workshop "${provider.shopName}" does not offer ${booking.category} (${booking.serviceName}) services. Please select an eligible provider.`,
+      });
+    }
+
+    booking.providerId = provider._id;
+    booking.shopName = provider.shopName;
+    if (booking.status === 'PENDING') {
+      booking.status = 'ACCEPTED';
+    }
+    booking.statusHistory.push({
+      status: booking.status,
+      timestamp: new Date(),
+      notes: `Provider assigned by Admin: ${provider.shopName}`,
+    });
+
+    await booking.save();
+
+    // Notify Provider Account
+    if (provider.userId) {
+      const Notification = require('../models/Notification');
+      await Notification.create({
+        recipientUserId: provider.userId,
+        recipientRole: 'PROVIDER',
+        type: 'BOOKING_REQUESTED',
+        title: 'Booking Assigned by Admin',
+        message: `Admin assigned booking #${booking.bookingNumber} (${booking.serviceName}) to your workshop.`,
+        bookingId: booking._id,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Workshop "${provider.shopName}" assigned to booking #${booking.bookingNumber} successfully.`,
+      data: booking,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getDashboardStats,
   getUsers,
   toggleUserStatus,
   verifyProvider,
   getReports,
+  getEligibleProvidersForBooking,
+  assignProviderToBooking,
 };

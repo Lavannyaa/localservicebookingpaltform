@@ -67,11 +67,8 @@ export const Register = () => {
     setLocalError('');
     setOauthLoading(true);
     try {
-      const { state } = await oauthService.createAuthorizationRequest('google', selectedRole);
-      const simulatedAuthCode = `oauth_signup_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-      setTimeout(() => {
-        navigate(`/auth/oauth/callback?code=${simulatedAuthCode}&state=${encodeURIComponent(state)}`);
-      }, 500);
+      const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      window.location.href = `${backendUrl}/auth/google`;
     } catch (err) {
       setLocalError(err.message || 'OAuth signup failed.');
       setOauthLoading(false);

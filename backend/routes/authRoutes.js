@@ -14,6 +14,7 @@ router.post('/reset-password', authController.resetPassword);
 
 // Google OAuth Status Check
 router.get('/google/status', authController.getGoogleOAuthStatus);
+router.post('/google/exchange', authController.exchangeGoogleAuthorizationCode);
 
 // Google OAuth 2.0 Flow
 router.get('/google', (req, res, next) => {

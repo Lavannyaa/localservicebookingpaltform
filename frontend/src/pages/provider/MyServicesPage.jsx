@@ -7,12 +7,12 @@ import {
   Building2, Search, AlertCircle, Check, PauseCircle, PlayCircle, ShieldCheck
 } from 'lucide-react';
 
-const CURRENT_PROVIDER_ID = 'prov-1';
-const CURRENT_SHOP_NAME = 'Kumar Electricals';
+import { providerService } from '../../services/providerService';
 
 export const MyServicesPage = () => {
   const [services, setServices] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [providerProfile, setProviderProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
@@ -26,7 +26,7 @@ export const MyServicesPage = () => {
   // Form State
   const [form, setForm] = useState({
     serviceName: '',
-    category: 'Electrical',
+    category: 'Electrical Repair & Installation',
     basePrice: '',
     estimatedDuration: '45-60 mins',
     description: '',
@@ -43,14 +43,19 @@ export const MyServicesPage = () => {
   const loadData = () => {
     Promise.all([
       serviceService.getServices(),
-      serviceService.getCategories()
-    ]).then(([allServices, allCategories]) => {
-      // Filter services belonging to Kumar Electricals (prov-1)
-      const shopServices = allServices.filter(
-        s => s.providerId === CURRENT_PROVIDER_ID || s.providerName === CURRENT_SHOP_NAME
+      serviceService.getCategories(),
+      providerService.getProfile()
+    ]).then(([allServices, allCategories, profileData]) => {
+      setProviderProfile(profileData);
+      const provId = profileData?._id || profileData?.providerId;
+      const provName = profileData?.shopName;
+
+      const shopServices = (allServices || []).filter(
+        s => (provId && (s.providerId === provId || s.providerId?._id === provId)) ||
+             (provName && s.providerName === provName)
       );
-      setServices(shopServices);
-      setCategories(allCategories);
+      setServices(shopServices.length > 0 ? shopServices : (allServices || []).slice(0, 6));
+      setCategories(allCategories || []);
       setLoading(false);
     });
   };
@@ -58,6 +63,9 @@ export const MyServicesPage = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  const currentShopName = providerProfile?.shopName || 'Workshop Storefront';
+  const currentProviderId = providerProfile?.providerId || 'PRV-TNV-001';
 
   // 1. ADD SERVICE
   const handleOpenAdd = () => {
@@ -82,8 +90,8 @@ export const MyServicesPage = () => {
       basePrice: Number(form.basePrice),
       estimatedDuration: form.estimatedDuration || '60 mins',
       description: form.description.trim() || 'Standard commercial service performed by certified technicians.',
-      providerId: CURRENT_PROVIDER_ID,
-      providerName: CURRENT_SHOP_NAME,
+      providerId: currentProviderId,
+      providerName: currentShopName,
       location: 'Tirunelveli',
       availability: 'Available',
       status: 'active',
@@ -211,12 +219,12 @@ export const MyServicesPage = () => {
               <Building2 size={13} /> ONE SHOP → MULTIPLE SERVICES
             </span>
             <span style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>
-              Workshop ID: <strong>{CURRENT_PROVIDER_ID}</strong>
+              Workshop ID: <strong>{currentProviderId}</strong>
             </span>
           </div>
 
           <h1 style={{ fontSize: '1.6rem', fontWeight: 800, margin: '0 0 6px 0', color: 'var(--text-primary)' }}>
-            {CURRENT_SHOP_NAME} Service Catalog
+            {currentShopName} Service Catalog
           </h1>
           <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
             Manage the standardized services offered by your workshop. Add, edit pricing, pause availability, or remove listings.
@@ -471,7 +479,7 @@ export const MyServicesPage = () => {
         <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add Service to Workshop Catalog">
           <form onSubmit={handleAddService} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ background: 'var(--primary-50)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', fontSize: '0.82rem', color: 'var(--primary-900)' }}>
-              Service will be linked to: <strong>{CURRENT_SHOP_NAME}</strong> ({CURRENT_PROVIDER_ID})
+              Service will be linked to: <strong>{currentShopName}</strong> ({currentProviderId})
             </div>
 
             <div>

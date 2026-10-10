@@ -1,69 +1,129 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { providerService } from '../../services/providerService';
 import { Button } from '../../components/common/Button';
-import { RatingStars } from '../../components/common/RatingStars';
 import { StatusBadge } from '../../components/common/StatusBadge';
-import { providers } from '../../data/providers';
-import { services } from '../../data/services';
-import { reviews as mockReviews } from '../../data/reviews';
+import { RatingStars } from '../../components/common/RatingStars';
 import {
-  Building2, MapPin, Phone, Mail, Clock, Award, ShieldCheck, Check,
-  Star, MessageSquare, Wrench, Edit3, Save, Plus, ArrowRight, ToggleLeft
+  Building2, ShieldCheck, Check, MessageSquare, Wrench, Edit3, Save, Plus, Compass
 } from 'lucide-react';
 
 export const ShopProfilePage = () => {
   const navigate = useNavigate();
-  const defaultProvider = providers.find(p => p.providerId === 'prov-1') || providers[0];
 
-  const [profile, setProfile] = useState(() => {
-    const saved = localStorage.getItem('localserve_provider_shop_profile');
-    if (saved) {
-      try { return JSON.parse(saved); } catch { return defaultProvider; }
-    }
-    return {
-      shopName: defaultProvider.shopName || 'Kumar Electricals',
-      ownerName: defaultProvider.ownerName || 'Ravi Kumar',
-      address: '45 West Car Street, Near Town Arch, Tirunelveli - 627006',
-      city: defaultProvider.city || 'Tirunelveli',
-      serviceArea: defaultProvider.serviceArea || '12 km radius (Town, Junction, Vannarpettai, Palayamkottai)',
-      specialization: defaultProvider.specialization || 'Electrical Repair & Rewinding Workshop',
-      experience: defaultProvider.experience || '14 Years Commercial Experience',
-      workingHours: defaultProvider.workingHours || '08:30 AM – 08:30 PM (Mon-Sat)',
-      availability: defaultProvider.availability || 'Available',
-      rating: defaultProvider.rating || 4.88,
-      reviewCount: defaultProvider.reviewCount || 128,
-      licenseNo: defaultProvider.licenseNo || 'TN-TNV-ELEC-2010-8842',
-      gstin: '33AABCU9603R1ZM',
-      phone: defaultProvider.phone || '+91 98421 23456',
-      email: defaultProvider.email || 'kumar.electricals@localserve.com',
-      tagline: defaultProvider.tagline || 'Master Electrical Contractor & Rewinding Workshop',
-      servicesOffered: defaultProvider.servicesOffered || [
-        'Electrical Wiring & Short Circuit Fix',
-        'Fan Installation & High-Speed Rewinding',
-        'Switch & Socket Repair',
-        'AC Jet Wash & Comprehensive Service',
-        'Inverter/UPS Installation & Battery Setup',
-        'Lighting, MCB & DB Distribution Board Overhaul'
-      ]
-    };
+  const [profile, setProfile] = useState({
+    shopName: 'Kumar Electricals & Rewinding Works',
+    ownerName: 'Ravi Kumar',
+    address: '124 South Bypass Road, Palayamkottai, Tirunelveli - 627005',
+    city: 'Tirunelveli',
+    serviceArea: 'Palayamkottai & Perumalpuram (15 km radius)',
+    specialization: 'Electrical Repair, Rewinding & Appliances',
+    experience: 12,
+    workingHours: '08:30 AM - 08:30 PM',
+    availability: 'AVAILABLE',
+    rating: 4.85,
+    reviewCount: 38,
+    licenseNo: 'PRV-TNV-002',
+    gstin: '33AABCU9603R1ZM',
+    phone: '+91 98421 23456',
+    email: 'kumar.electricals@localserve.com',
+    latitude: 8.7180,
+    longitude: 77.7490,
+    tagline: 'Master Electrical Contractor & Workshop',
+    servicesOffered: [
+      'Electrical Wiring & Short Circuit Fix',
+      'Fan Installation & Rewinding',
+      'Switch & Socket Repair',
+      'AC Comprehensive Service'
+    ]
   });
 
   const [isEditing, setIsEditing] = useState(false);
   const [saved, setSaved] = useState(false);
   const [newServiceTag, setNewServiceTag] = useState('');
+  const [, setLoading] = useState(true);
+  const [shopServices, setShopServices] = useState([
+    { serviceId: 'srv-1', serviceName: 'Electrical Wiring & Short Circuit Fix', basePrice: 499, estimatedDuration: '1 hr' },
+    { serviceId: 'srv-2', serviceName: 'Fan Installation & Rewinding', basePrice: 350, estimatedDuration: '45 mins' },
+    { serviceId: 'srv-3', serviceName: 'Switch & Socket Repair', basePrice: 200, estimatedDuration: '30 mins' }
+  ]);
+  useEffect(() => {
+    providerService.getProfile().then(data => {
+      if (data) {
+        setProfile({
+          shopName: data.shopName || '',
+          ownerName: data.providerName || '',
+          address: data.shopAddress || '',
+          city: data.city || 'Tirunelveli',
+          serviceArea: data.serviceArea || 'Tirunelveli (25 km radius)',
+          specialization: Array.isArray(data.specialization) ? data.specialization.join(', ') : (data.specialization || ''),
+          experience: data.experience || 5,
+          workingHours: data.workingHours || '08:30 AM - 08:30 PM',
+          availability: data.availabilityStatus || 'AVAILABLE',
+          rating: data.rating || 4.85,
+          reviewCount: data.reviewCount || 0,
+          licenseNo: data.providerId || 'TN-TNV-2026',
+          gstin: '33AABCU9603R1ZM',
+          phone: data.phone || data.phoneNumber || '+91 98421 23456',
+          email: data.email || 'workshop@localserve.in',
+          latitude: data.latitude || 8.7180,
+          longitude: data.longitude || 77.7490,
+          tagline: `${Array.isArray(data.specialization) && data.specialization.length ? data.specialization[0] : 'Certified Service'} Workshop`,
+          servicesOffered: Array.isArray(data.servicesOffered) ? data.servicesOffered.map(s => s.name || s) : ['General Repair']
+        });
+        if (Array.isArray(data.servicesOffered) && data.servicesOffered.length > 0 && typeof data.servicesOffered[0] === 'object') {
+          setShopServices(data.servicesOffered.map((s, idx) => ({
+            serviceId: s._id || s.serviceId || `srv-${idx}`,
+            serviceName: s.name || s.serviceName || String(s),
+            basePrice: s.price || s.basePrice || 499,
+            estimatedDuration: s.duration || s.estimatedDuration || '1 hr'
+          })));
+        }
+      }
+      setLoading(false);
+    });
+  }, []);
 
-  // Shop reviews
-  const shopReviews = mockReviews.filter(r => r.providerName === profile.shopName || r.category === 'Electrical').slice(0, 4);
-
-  // Shop services from service dataset
-  const shopServices = services.filter(s => s.providerName === profile.shopName || s.providerId === 'prov-1');
-
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    localStorage.setItem('localserve_provider_shop_profile', JSON.stringify(profile));
-    setIsEditing(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3500);
+    try {
+      const payload = {
+        shopName: profile.shopName,
+        providerName: profile.ownerName,
+        shopAddress: profile.address,
+        city: profile.city,
+        serviceArea: profile.serviceArea,
+        specialization: profile.specialization,
+        experience: Number(profile.experience),
+        workingHours: profile.workingHours,
+        availabilityStatus: profile.availability,
+        latitude: Number(profile.latitude),
+        longitude: Number(profile.longitude),
+        phone: profile.phone
+      };
+      await providerService.updateProfile(payload);
+      setIsEditing(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3500);
+    } catch (err) {
+      console.error('Failed to save workshop profile to MongoDB:', err);
+    }
+  };
+
+  const handleGeocodeAddress = async () => {
+    if (!profile.address && !profile.city) return;
+    try {
+      const queryStr = `${profile.address}, ${profile.city}, Tamil Nadu, India`;
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryStr)}`);
+      const results = await res.json();
+      if (results && results.length > 0) {
+        const lat = parseFloat(results[0].lat);
+        const lon = parseFloat(results[0].lon);
+        setProfile(prev => ({ ...prev, latitude: lat, longitude: lon }));
+      }
+    } catch (e) {
+      console.warn('Geocoding resolution fallback:', e);
+    }
   };
 
   const handleAddServiceTag = (e) => {
@@ -304,9 +364,38 @@ export const ShopProfilePage = () => {
               />
             </div>
 
-            <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-              <Button variant="secondary" onClick={() => setIsEditing(false)}>Cancel</Button>
-              <Button variant="primary" type="submit">Save Workshop Profile</Button>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, marginBottom: '6px' }}>10. Shop Latitude (°N)</label>
+              <input
+                type="number"
+                step="any"
+                required
+                value={profile.latitude || 8.7180}
+                onChange={e => setProfile({ ...profile, latitude: parseFloat(e.target.value) || 0 })}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, marginBottom: '6px' }}>11. Shop Longitude (°E)</label>
+              <input
+                type="number"
+                step="any"
+                required
+                value={profile.longitude || 77.7490}
+                onChange={e => setProfile({ ...profile, longitude: parseFloat(e.target.value) || 0 })}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)' }}
+              />
+            </div>
+
+            <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginTop: '10px' }}>
+              <Button type="button" variant="outline" onClick={handleGeocodeAddress} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Compass size={16} /> Resolve Coordinates from Address (Map Geocoder)
+              </Button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <Button variant="secondary" onClick={() => setIsEditing(false)}>Cancel</Button>
+                <Button variant="primary" type="submit">Save Workshop Profile to Database</Button>
+              </div>
             </div>
           </form>
         ) : (
@@ -354,6 +443,13 @@ export const ShopProfilePage = () => {
               <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>AVAILABILITY STATUS</span>
               <div style={{ marginTop: '4px' }}>
                 <StatusBadge status={profile.availability} />
+              </div>
+            </div>
+
+            <div style={{ background: 'var(--bg-muted)', padding: '14px 18px', borderRadius: 'var(--radius-md)' }}>
+              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>GPS SHOP COORDINATES</span>
+              <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--primary-700)', marginTop: '2px' }}>
+                {profile.latitude ? `${profile.latitude.toFixed(4)}°N, ${profile.longitude ? profile.longitude.toFixed(4) : 0}°E` : 'Not Set'}
               </div>
             </div>
 

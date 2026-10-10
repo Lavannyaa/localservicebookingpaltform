@@ -417,6 +417,144 @@ const resetPassword = async (req, res, next) => {
 };
 
 /**
+ * Exchange a Google authorization code for a backend JWT
+ * POST /api/auth/google/exchange
+ */
+const exchangeGoogleAuthorizationCode = async (req, res, next) => {
+  try {
+    if (!isGoogleOAuthConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Google OAuth is not configured on the server.',
+      });
+    }
+
+    const { code, codeVerifier, state, redirectUri } = req.body || {};
+    if (
+      typeof code !== 'string' ||
+      !code.trim() ||
+      typeof codeVerifier !== 'string' ||
+      !/^[A-Za-z0-9._~-]{43,128}$/.test(codeVerifier) ||
+      typeof state !== 'string' ||
+      !state.trim()
+    ) {
+      return res.status(422).json({
+        success: false,
+        message: 'A valid authorization code, PKCE verifier, and OAuth state are required.',
+      });
+    }
+
+    const clientUrl = (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/+$/, '');
+    const expectedRedirectUri =
+      process.env.GOOGLE_FRONTEND_CALLBACK_URL ||
+      `${clientUrl}/auth/oauth/callback`;
+    if (redirectUri !== expectedRedirectUri) {
+      return res.status(400).json({
+        success: false,
+        message: 'Google OAuth redirect URI does not match the server configuration.',
+      });
+    }
+
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: expectedRedirectUri,
+        grant_type: 'authorization_code',
+        code_verifier: codeVerifier,
+      }),
+    });
+    const tokenData = await tokenResponse.json();
+    if (!tokenResponse.ok || !tokenData.access_token) {
+      console.error('[Google OAuth] Authorization code exchange was rejected:', tokenData.error || tokenResponse.status);
+      return res.status(401).json({
+        success: false,
+        message: 'Google could not verify this sign-in. Please try again.',
+      });
+    }
+
+    const profileResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const profile = await profileResponse.json();
+    if (!profileResponse.ok) {
+      console.error('[Google OAuth] Failed to retrieve the verified profile:', profile.error || profileResponse.status);
+      return res.status(502).json({
+        success: false,
+        message: 'Google verified the sign-in, but the profile could not be retrieved.',
+      });
+    }
+
+    if (!profile.sub || !profile.email || profile.email_verified !== true) {
+      return res.status(403).json({
+        success: false,
+        message: 'Google did not provide a verified email address for this account.',
+      });
+    }
+
+    const email = profile.email.trim().toLowerCase();
+    let user = await User.findOne({
+      $or: [{ googleId: profile.sub }, { email }],
+    });
+
+    if (user?.status === 'SUSPENDED') {
+      return res.status(403).json({
+        success: false,
+        message: 'This account has been suspended. Please contact support.',
+      });
+    }
+
+    if (user?.googleId && user.googleId !== profile.sub) {
+      return res.status(409).json({
+        success: false,
+        message: 'This email is already linked to a different Google account.',
+      });
+    }
+
+    if (user) {
+      user.googleId = profile.sub;
+      user.isEmailVerified = true;
+      user.authProvider = 'GOOGLE';
+      if (!user.profileImage && profile.picture) {
+        user.profileImage = profile.picture;
+      }
+      await user.save();
+    } else {
+      user = await User.create({
+        name: profile.name || email.split('@')[0],
+        email,
+        googleId: profile.sub,
+        role: 'CUSTOMER',
+        isEmailVerified: true,
+        authProvider: 'GOOGLE',
+        profileImage: profile.picture || '',
+      });
+    }
+
+    const token = generateToken(user);
+    return res.status(200).json({
+      success: true,
+      token,
+      data: {
+        userId: user._id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        phone: user.phone,
+        isEmailVerified: user.isEmailVerified,
+        preferredLanguage: user.preferredLanguage || 'en',
+        profileImage: user.profileImage || '',
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * Check Google OAuth availability status
  * GET /api/auth/google/status
  */
@@ -455,6 +593,7 @@ module.exports = {
   getMe,
   forgotPassword,
   resetPassword,
+  exchangeGoogleAuthorizationCode,
   getGoogleOAuthStatus,
   googleCallbackSuccess,
 };

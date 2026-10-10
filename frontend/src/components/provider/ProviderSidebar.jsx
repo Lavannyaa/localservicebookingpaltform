@@ -38,7 +38,7 @@ export const ProviderSidebar = () => {
           <Building2 size={20} />
         </div>
         <div>
-          <span style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>{user?.shopName || 'Kumar Electricals'}</span>
+          <span style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>{user?.shopName || 'Workshop Storefront'}</span>
           <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--primary-600)', fontWeight: 700 }}>WORKSHOP PORTAL</span>
         </div>
       </div>

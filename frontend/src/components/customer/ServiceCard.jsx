@@ -5,7 +5,7 @@ import { Button } from '../common/Button';
 import { RatingStars } from '../common/RatingStars';
 import { StatusBadge } from '../common/StatusBadge';
 import { useFavorites } from '../../hooks';
-import { Clock, Building2, Heart, ShieldCheck } from 'lucide-react';
+import { Clock, Building2, Heart, ShieldCheck, MapPin } from 'lucide-react';
 
 export const ServiceCard = ({ service }) => {
   const navigate = useNavigate();
@@ -81,21 +81,43 @@ export const ServiceCard = ({ service }) => {
           {service.description}
         </p>
 
-        {/* Workshop Attribution Tag */}
+        {/* Workshop Attribution Tag & Real Distance */}
         <div style={{
           background: 'var(--bg-muted)',
           padding: '8px 12px',
           borderRadius: 'var(--radius-md)',
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'space-between',
           gap: '8px',
           marginBottom: '14px',
           fontSize: '0.82rem'
         }}>
-          <Building2 size={15} color="var(--primary-600)" />
-          <span style={{ fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {service.providerName}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+            <Building2 size={15} color="var(--primary-600)" style={{ flexShrink: 0 }} />
+            <span style={{ fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {service.providerName || 'LocalServe Certified Workshop'}
+            </span>
+          </div>
+
+          {(service.distanceKm !== undefined && service.distanceKm !== null) && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: '#ecfdf5',
+              color: '#047857',
+              padding: '3px 8px',
+              borderRadius: '12px',
+              fontSize: '0.78rem',
+              fontWeight: 800,
+              flexShrink: 0,
+              border: '1px solid #a7f3d0'
+            }}>
+              <MapPin size={13} color="#047857" />
+              <span>{service.distanceKm} km away</span>
+            </div>
+          )}
         </div>
 
         {/* Rating and Duration */}

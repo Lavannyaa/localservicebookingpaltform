@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { complaintService } from '../../services/complaintService';
+import { supportService } from '../../services/supportService';
 import { bookingService } from '../../services/bookingService';
 import { Button } from '../../components/common/Button';
 import {
@@ -13,16 +13,16 @@ export const SupportDashboard = () => {
   const [bookings, setBookings] = useState([]);
 
   useEffect(() => {
-    complaintService.getComplaints().then(setTickets);
-    bookingService.getBookings().then(setBookings);
+    supportService.getTickets().then(data => setTickets(data || []));
+    bookingService.getBookings().then(data => setBookings(data || []));
   }, []);
 
-  const openTickets = tickets.filter(t => t.status === 'Open' || t.status === 'Investigating');
-  const activeBookings = bookings.filter(b => b.status === 'In Progress' || b.status === 'Technician Assigned');
+  const openTickets = tickets.filter(t => ['OPEN', 'INVESTIGATING', 'PENDING'].includes((t.status || '').toUpperCase()));
+  const activeBookings = bookings.filter(b => ['ACCEPTED', 'TECHNICIAN_ASSIGNED', 'TECHNICIAN_ACCEPTED', 'ON_THE_WAY', 'ARRIVED', 'SERVICE_STARTED'].includes((b.status || '').toUpperCase()));
 
   const stats = [
-    { label: 'Open Grievances', value: openTickets.length || '3', icon: AlertTriangle, color: '#ef4444', bg: '#fef2f2' },
-    { label: 'Active In-Field', value: activeBookings.length || '4', icon: CalendarCheck, color: '#3b82f6', bg: '#eff6ff' },
+    { label: 'Open Grievances', value: openTickets.length, icon: AlertTriangle, color: '#ef4444', bg: '#fef2f2' },
+    { label: 'Active In-Field', value: activeBookings.length, icon: CalendarCheck, color: '#3b82f6', bg: '#eff6ff' },
     { label: 'SLA Compliance', value: '98.6%', icon: CheckCircle2, color: '#10b981', bg: '#ecfdf5' },
     { label: 'Avg Resolution Time', value: '18 Mins', icon: Clock, color: 'var(--primary-600)', bg: 'var(--primary-50)' }
   ];

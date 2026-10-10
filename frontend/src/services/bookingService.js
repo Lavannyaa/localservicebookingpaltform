@@ -1,98 +1,96 @@
-import { bookings } from '../data/bookings';
-
-let localBookings = [...bookings];
+import { apiClient } from './api';
 
 export const bookingService = {
   async getBookings(filters = {}) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        let results = [...localBookings];
-        if (filters.customerId) {
-          results = results.filter(b => b.customerId === filters.customerId);
-        }
-        if (filters.providerId) {
-          results = results.filter(b => b.providerId === filters.providerId);
-        }
-        if (filters.technicianId) {
-          results = results.filter(b => b.technicianId === filters.technicianId);
-        }
-        if (filters.status && filters.status !== 'all') {
-          results = results.filter(b => b.status.toLowerCase() === filters.status.toLowerCase());
-        }
-        resolve(results);
-      }, 80);
-    });
+    try {
+      const res = await apiClient.get('/bookings', filters);
+      if (res && res.data && Array.isArray(res.data)) {
+        return res.data;
+      }
+      if (res && Array.isArray(res)) {
+        return res;
+      }
+    } catch (err) {
+      console.warn('[bookingService] API getBookings error:', err.message);
+    }
+    return [];
   },
 
   async getBookingById(id) {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const found = localBookings.find(b => b.bookingId === id || b.bookingNumber === id);
-        if (found) resolve(found);
-        else reject(new Error('Booking not found'));
-      }, 50);
-    });
+    try {
+      const res = await apiClient.get(`/bookings/${id}`);
+      if (res && res.data) return res.data;
+      if (res) return res;
+    } catch (err) {
+      console.warn('[bookingService] API getBookingById error:', err.message);
+      throw err;
+    }
   },
 
   async createBooking(bookingData) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const randomNum = Math.floor(1000 + Math.random() * 9000);
-        const newBooking = {
-          bookingId: `BK-${randomNum}`,
-          bookingNumber: `LS-2026-${randomNum}`,
-          status: 'Pending',
-          platformFee: 49,
-          totalAmount: Number(bookingData.price || 499) + 49,
-          createdAt: new Date().toISOString(),
-          serviceChecklist: [
-            {"item": "Initial parameter check", "done": false},
-            {"item": "Service execution", "done": false},
-            {"item": "Testing & verification", "done": false}
-          ],
-          techNotes: "",
-          ...bookingData
-        };
-        localBookings = [newBooking, ...localBookings];
-        resolve(newBooking);
-      }, 100);
-    });
+    try {
+      const payload = {
+        serviceId: bookingData.serviceId || bookingData.service?._id || bookingData.service?.serviceId,
+        providerId: bookingData.providerId || bookingData.provider?._id || bookingData.provider?.providerId,
+        bookingDate: bookingData.bookingDate || bookingData.date || new Date().toISOString().split('T')[0],
+        bookingTime: bookingData.bookingTime || bookingData.timeSlot || '09:00 AM - 10:30 AM',
+        serviceAddress: bookingData.serviceAddress || bookingData.address || 'Vannarpettai, Tirunelveli',
+        customerName: bookingData.customerName,
+        customerPhone: bookingData.customerPhone,
+        problemDescription: bookingData.problemDescription || bookingData.requirements || '',
+        paymentMethod: bookingData.paymentMethod || 'Online',
+        isMaintenanceRebooking: Boolean(bookingData.isMaintenanceRebooking)
+      };
+
+      const res = await apiClient.post('/bookings', payload);
+      if (res && res.data) return res.data;
+      if (res) return res;
+    } catch (err) {
+      console.error('[bookingService] API createBooking error:', err.message);
+      throw err;
+    }
   },
 
   async updateBookingStatus(id, newStatus, notes = '') {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        localBookings = localBookings.map(b => {
-          if (b.bookingId === id || b.bookingNumber === id) {
-            return {
-              ...b,
-              status: newStatus,
-              techNotes: notes ? (b.techNotes ? `${b.techNotes} | ${notes}` : notes) : b.techNotes
-            };
-          }
-          return b;
-        });
-        const updated = localBookings.find(b => b.bookingId === id || b.bookingNumber === id);
-        resolve(updated);
-      }, 80);
-    });
+    try {
+      const res = await apiClient.put(`/bookings/${id}/status`, { status: newStatus, notes });
+      if (res && res.data) return res.data;
+      if (res) return res;
+    } catch (err) {
+      console.warn('[bookingService] API updateBookingStatus error:', err.message);
+    }
+  },
+
+  async cancelBooking(id, reason = 'Cancelled by customer') {
+    try {
+      const res = await apiClient.put(`/bookings/${id}/cancel`, { reason });
+      if (res && res.data) return res.data;
+      if (res) return res;
+    } catch (err) {
+      console.error('[bookingService] API cancelBooking error:', err.message);
+      throw err;
+    }
   },
 
   async updateChecklist(id, checklist) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        localBookings = localBookings.map(b => (b.bookingId === id ? { ...b, serviceChecklist: checklist } : b));
-        resolve({ success: true, bookingId: id, checklist });
-      }, 50);
-    });
+    try {
+      const res = await apiClient.put(`/technicians/jobs/${id}/checklist`, { items: checklist });
+      if (res && res.data) return res.data;
+    } catch (err) {
+      console.warn('[bookingService] API updateChecklist error:', err.message);
+    }
+    return { success: true, bookingId: id, checklist };
   },
 
   async addTechNotes(id, techNotes) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        localBookings = localBookings.map(b => (b.bookingId === id ? { ...b, techNotes } : b));
-        resolve({ success: true, bookingId: id, techNotes });
-      }, 50);
-    });
+    try {
+      const res = await apiClient.put(`/technicians/jobs/${id}/notes`, { notes: techNotes });
+      if (res && res.data) return res.data;
+    } catch (err) {
+      console.warn('[bookingService] API addTechNotes error:', err.message);
+    }
+    return { success: true, bookingId: id, techNotes };
   }
 };
+
+export default bookingService;

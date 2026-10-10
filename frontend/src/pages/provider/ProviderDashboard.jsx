@@ -5,6 +5,7 @@ import {
   ArrowRight, Users, Wrench, AlertCircle, Phone, MapPin, History, User
 } from 'lucide-react';
 import { bookingService } from '../../services/bookingService';
+import { providerService } from '../../services/providerService';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { Button } from '../../components/common/Button';
 import { useRecentlyAccessed } from '../../hooks';
@@ -13,26 +14,40 @@ export const ProviderDashboard = () => {
   const navigate = useNavigate();
   const { recentlyAccessed, formatAccessedTime } = useRecentlyAccessed();
   const [bookings, setBookings] = useState([]);
+  const [profile, setProfile] = useState(null);
+  const [technicians, setTechnicians] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    bookingService.getBookings().then(data => {
-      setBookings(data);
+    Promise.all([
+      providerService.getProviderBookings(),
+      providerService.getProfile(),
+      providerService.getProviderTechnicians()
+    ]).then(([bookingsData, profileData, techData]) => {
+      setBookings(bookingsData || []);
+      setProfile(profileData || null);
+      setTechnicians(techData || []);
       setLoading(false);
     });
   }, []);
 
-  const pending = bookings.filter(b => b.status === 'Pending');
-  const inProgress = bookings.filter(b => b.status === 'In Progress' || b.status === 'Technician Assigned');
-  const completed = bookings.filter(b => b.status === 'Completed');
+  const pending = bookings.filter(b => (b.status || '').toUpperCase() === 'PENDING');
+  const inProgress = bookings.filter(b => ['ACCEPTED', 'TECHNICIAN_ASSIGNED', 'TECHNICIAN_ACCEPTED', 'ON_THE_WAY', 'ARRIVED', 'SERVICE_STARTED'].includes((b.status || '').toUpperCase()));
+  const completed = bookings.filter(b => (b.status || '').toUpperCase() === 'SERVICE_COMPLETED');
+  const totalRevenue = completed.reduce((sum, b) => sum + Number(b.totalAmount || b.price || 0), 0);
+
+  const shopName = profile?.shopName || 'Workshop Storefront';
+  const shopAddress = profile?.shopAddress || 'Tirunelveli, Tamil Nadu';
+  const ratingVal = profile?.rating ? `${profile.rating} ⭐` : '4.9 ⭐';
+  const licenseNo = profile?.providerId || 'TN-TNV-2026';
 
   const stats = [
-    { label: 'Total Bookings', value: bookings.length || '142', icon: CalendarCheck, color: 'var(--primary-600)', bg: 'var(--primary-50)' },
-    { label: 'Pending Requests', value: pending.length || '3', icon: Inbox, color: '#f59e0b', bg: '#fef3c7' },
-    { label: 'Active in Field', value: inProgress.length || '2', icon: Clock, color: '#3b82f6', bg: '#eff6ff' },
-    { label: 'Completed Jobs', value: completed.length || '136', icon: CheckCircle2, color: '#10b981', bg: '#ecfdf5' },
-    { label: 'Shop Rating', value: '4.88 ⭐', icon: Star, color: '#8b5cf6', bg: '#f5f3ff' },
-    { label: 'Month Revenue', value: '₹48,950', icon: TrendingUp, color: '#059669', bg: '#d1fae5' }
+    { label: 'Total Bookings', value: bookings.length, icon: CalendarCheck, color: 'var(--primary-600)', bg: 'var(--primary-50)' },
+    { label: 'Pending Requests', value: pending.length, icon: Inbox, color: '#f59e0b', bg: '#fef3c7' },
+    { label: 'Active in Field', value: inProgress.length, icon: Clock, color: '#3b82f6', bg: '#eff6ff' },
+    { label: 'Completed Jobs', value: completed.length, icon: CheckCircle2, color: '#10b981', bg: '#ecfdf5' },
+    { label: 'Shop Rating', value: ratingVal, icon: Star, color: '#8b5cf6', bg: '#f5f3ff' },
+    { label: 'Total Revenue', value: `₹${totalRevenue.toLocaleString()}`, icon: TrendingUp, color: '#059669', bg: '#d1fae5' }
   ];
 
   return (
@@ -55,11 +70,11 @@ export const ProviderDashboard = () => {
             <span style={{ background: 'rgba(255,255,255,0.2)', padding: '4px 10px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 700 }}>
               VERIFIED WORKSHOP
             </span>
-            <span style={{ fontSize: '0.85rem', color: '#e9d5ff' }}>License: TN-ELEC-4421</span>
+            <span style={{ fontSize: '0.85rem', color: '#e9d5ff' }}>License: {licenseNo}</span>
           </div>
-          <h1 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '0 0 6px 0', color: '#fff' }}>Kumar Electricals Workshop</h1>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '0 0 6px 0', color: '#fff' }}>{shopName}</h1>
           <p style={{ margin: 0, color: '#f3e8ff', fontSize: '0.92rem' }}>
-            45 West Car Street, Tirunelveli · 10 Active Technicians on Duty
+            {shopAddress} · {technicians.length} Active Technicians on Duty
           </p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>

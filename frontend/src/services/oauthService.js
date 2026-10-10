@@ -8,8 +8,7 @@
  * - Generates high-entropy cryptographic code_verifier
  * - Generates SHA-256 code_challenge via Web Crypto API (crypto.subtle)
  * - Cryptographically random CSRF state nonce verification
- * - Prepared for standard backend code-for-token exchange endpoint
- * - Zero hardcoded fake tokens
+ * - Exchanges the authorization code through the backend using PKCE
  */
 
 const OAUTH_STORAGE_KEY = 'localserve_oauth_session';
@@ -17,14 +16,12 @@ const OAUTH_STORAGE_KEY = 'localserve_oauth_session';
 // Helper to generate cryptographically random strings
 function generateRandomString(length = 64) {
   const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
-  const array = new Uint8Array(length);
-  if (typeof window !== 'undefined' && window.crypto) {
-    window.crypto.getRandomValues(array);
-  } else {
-    for (let i = 0; i < length; i++) {
-      array[i] = Math.floor(Math.random() * 256);
-    }
+  if (typeof window === 'undefined' || !window.crypto) {
+    throw new Error('Secure browser cryptography is required to start Google sign-in.');
   }
+
+  const array = new Uint8Array(length);
+  window.crypto.getRandomValues(array);
   let result = '';
   for (let i = 0; i < length; i++) {
     result += charset[array[i] % charset.length];
@@ -47,14 +44,14 @@ function bufferToBase64Url(buffer) {
 
 // Generate SHA-256 PKCE Code Challenge
 async function generateCodeChallenge(codeVerifier) {
-  if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(codeVerifier);
-    const digest = await window.crypto.subtle.digest('SHA-256', data);
-    return bufferToBase64Url(digest);
+  if (typeof window === 'undefined' || !window.crypto?.subtle) {
+    throw new Error('Secure PKCE support is unavailable in this browser.');
   }
-  // Fallback for non-subtle environments
-  return codeVerifier;
+
+  const encoder = new TextEncoder();
+  const data = encoder.encode(codeVerifier);
+  const digest = await window.crypto.subtle.digest('SHA-256', data);
+  return bufferToBase64Url(digest);
 }
 
 export const oauthService = {
@@ -63,7 +60,7 @@ export const oauthService = {
     google: {
       clientId: typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_CLIENT_ID 
         ? import.meta.env.VITE_GOOGLE_CLIENT_ID 
-        : '681940182741-localserve-client.apps.googleusercontent.com',
+        : '',
       authEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
       tokenEndpoint: 'https://oauth2.googleapis.com/token',
       scopes: ['openid', 'email', 'profile'],
@@ -80,6 +77,9 @@ export const oauthService = {
     const providerConfig = this.config[provider];
     if (!providerConfig) {
       throw new Error(`Unsupported OAuth provider: ${provider}`);
+    }
+    if (!providerConfig.clientId) {
+      throw new Error('Google sign-in is not configured. Set VITE_GOOGLE_CLIENT_ID in frontend/.env.');
     }
 
     const codeVerifier = generateRandomString(64);

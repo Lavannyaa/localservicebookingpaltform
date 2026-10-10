@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { bookingService } from '../../services/bookingService';
+import { technicianService } from '../../services/technicianService';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { Button } from '../../components/common/Button';
 import {
@@ -23,25 +24,21 @@ export const TechnicianDashboard = () => {
   };
 
   useEffect(() => {
-    bookingService.getBookings().then(data => {
-      // Find technician Murugan jobs or all open jobs
-      const jobs = data.filter(b =>
-        b.technicianId === 'tech-1' ||
-        ['assigned', 'technician assigned', 'accepted', 'on the way', 'arrived', 'service started', 'in progress'].includes((b.status || '').toLowerCase().trim())
-      );
-      setAssignedJobs(jobs.length > 0 ? jobs : data.slice(0, 4));
-      // First active job in progress or first assigned
-      const current = jobs.find(j => ['service started', 'in progress', 'arrived', 'on the way', 'accepted'].includes((j.status || '').toLowerCase().trim())) || jobs[0];
-      setActiveJob(current || data[0]);
+    technicianService.getJobs().then(data => {
+      const jobs = data || [];
+      setAssignedJobs(jobs);
+      const current = jobs.find(j => ['SERVICE_STARTED', 'ARRIVED', 'ON_THE_WAY', 'ACCEPTED', 'TECHNICIAN_ASSIGNED'].includes((j.status || '').toUpperCase())) || jobs[0];
+      setActiveJob(current || null);
     });
   }, []);
 
   const advanceActiveJob = (nextStatus) => {
     if (!activeJob) return;
-    bookingService.updateBookingStatus(activeJob.bookingId, nextStatus).then(updated => {
+    const targetId = activeJob._id || activeJob.bookingId;
+    technicianService.updateJobStatus(targetId, nextStatus).then(updated => {
       setActiveJob(prev => ({ ...prev, status: nextStatus }));
-      setAssignedJobs(prev => prev.map(j => j.bookingId === activeJob.bookingId ? { ...j, status: nextStatus } : j));
-      showNotice(`Work order #${activeJob.bookingNumber} moved to "${nextStatus}"!`);
+      setAssignedJobs(prev => prev.map(j => (j._id === targetId || j.bookingId === targetId) ? { ...j, status: nextStatus } : j));
+      showNotice(`Work order #${activeJob.bookingNumber || targetId} updated to "${nextStatus}"!`);
     });
   };
 

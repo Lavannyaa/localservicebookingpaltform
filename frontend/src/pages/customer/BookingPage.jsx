@@ -6,6 +6,7 @@ import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
 import { useServices, useProviders, useBookings, useAuth } from '../../hooks';
+import { isProviderEligible, findEligibleProviderForService } from '../../utils/providerEligibility';
 import {
   Calendar, Clock, MapPin, Building2, ShieldCheck, CheckCircle2, ArrowRight,
   RefreshCw, Award, History, Sparkles
@@ -47,21 +48,42 @@ export const BookingPage = () => {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (services.length > 0) {
-      const s = services.find(x => x.serviceId === activeId) || draftBooking.service || services[0];
-      setService(s);
+    async function loadBookingDetails() {
+      if (!activeId) return;
 
-      let p = null;
-      if (paramProviderId) {
-        p = providers.find(x => x.providerId === paramProviderId);
-      } else if (paramProviderName) {
-        p = providers.find(x => x.shopName.toLowerCase() === paramProviderName.toLowerCase());
+      let s = services.find(
+        x => x.serviceId === activeId ||
+             (x._id && x._id.toString() === activeId.toString()) ||
+             (x.serviceName && x.serviceName.toLowerCase() === activeId.toLowerCase()) ||
+             (x.name && x.name.toLowerCase() === activeId.toLowerCase())
+      ) || draftBooking.service;
+
+      if (!s) {
+        try {
+          s = await serviceService.getServiceById(activeId);
+        } catch (err) {
+          console.warn('[BookingPage] Failed to fetch service by ID:', err);
+        }
       }
-      if (!p) {
-        p = providers.find(x => x.providerId === s.providerId) || draftBooking.provider || providers[0];
+
+      if (s) {
+        setService(s);
+
+        let p = null;
+        if (paramProviderId) {
+          p = providers.find(x => x.providerId === paramProviderId);
+        } else if (paramProviderName) {
+          p = providers.find(x => x.shopName.toLowerCase() === paramProviderName.toLowerCase());
+        }
+        if (!p || !isProviderEligible(p, s)) {
+          const eligibleProv = findEligibleProviderForService(s, providers);
+          p = eligibleProv || (isProviderEligible(draftBooking.provider, s) ? draftBooking.provider : null);
+        }
+        setProvider(p);
       }
-      setProvider(p);
     }
+
+    loadBookingDetails();
   }, [activeId, services, providers, draftBooking, paramProviderId, paramProviderName]);
 
   if (!service) return null;
@@ -76,8 +98,8 @@ export const BookingPage = () => {
       serviceId: service.serviceId,
       serviceName: service.serviceName,
       category: service.category,
-      providerId: provider?.providerId || 'prov-1',
-      providerName: provider?.shopName || 'Certified Workshop',
+      providerId: provider?.providerId || null,
+      providerName: provider?.shopName || 'No eligible provider assigned',
       customerId: user?.userId || 'user-cust-1',
       customerName: user?.name || 'Rahul Sharma',
       customerPhone: user?.phone || '+91 98765 43210',

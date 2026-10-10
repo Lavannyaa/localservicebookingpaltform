@@ -7,7 +7,18 @@ const { authorizeRoles } = require('../middleware/roleMiddleware');
 // Public Provider Discovery Routes
 router.get('/', providerController.getProviders);
 
-// Protected Provider Operations (Must precede /:id)
+router.get(
+  '/profile',
+  authenticateUser,
+  authorizeRoles('PROVIDER', 'ADMIN'),
+  providerController.getProviderProfile
+);
+router.put(
+  '/profile',
+  authenticateUser,
+  authorizeRoles('PROVIDER', 'ADMIN'),
+  providerController.updateProviderProfile
+);
 router.get(
   '/technicians',
   authenticateUser,

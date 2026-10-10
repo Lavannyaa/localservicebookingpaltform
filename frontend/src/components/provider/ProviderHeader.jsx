@@ -1,18 +1,34 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks';
 import { useTheme } from '../../context/ThemeContext';
+import { providerService } from '../../services/providerService';
 import { Sun, Moon, Bell } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const ProviderHeader = ({ title = "Workshop Dashboard" }) => {
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const [shopInfo, setShopInfo] = useState({ shopName: '', city: '' });
+
+  useEffect(() => {
+    providerService.getProfile().then(data => {
+      if (data) {
+        setShopInfo({
+          shopName: data.shopName || user?.shopName || 'Workshop Storefront',
+          city: data.city || 'Tirunelveli'
+        });
+      }
+    });
+  }, [user]);
+
+  const displayName = shopInfo.shopName || user?.shopName || 'Workshop Storefront';
+  const displayCity = shopInfo.city || 'Tirunelveli';
 
   return (
     <header style={{ height: '70px', background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-light)', padding: '0 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <div>
         <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>{title}</h2>
-        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Kumar Electricals · Tirunelveli</span>
+        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{displayName} · {displayCity}</span>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>

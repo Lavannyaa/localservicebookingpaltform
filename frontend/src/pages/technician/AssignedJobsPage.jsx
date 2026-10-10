@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { bookingService } from '../../services/bookingService';
+import { technicianService } from '../../services/technicianService';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { Button } from '../../components/common/Button';
 import {
@@ -22,10 +23,9 @@ export const AssignedJobsPage = () => {
   };
 
   useEffect(() => {
-    bookingService.getBookings().then(data => {
-      // Filter jobs relevant to technician Murugan or general field queue
-      setJobs(data);
-      setFiltered(data);
+    technicianService.getJobs().then(data => {
+      setJobs(data || []);
+      setFiltered(data || []);
     });
   }, []);
 

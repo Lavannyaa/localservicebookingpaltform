@@ -7,6 +7,8 @@ import { RatingStars } from '../../components/common/RatingStars';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 import { useServices, useProviders, useBookings, useRecentlyAccessed } from '../../hooks';
+import { findEligibleProviderForService } from '../../utils/providerEligibility';
+import { serviceService } from '../../services/serviceService';
 import {
   Clock, ShieldCheck, Building2, MapPin, CheckCircle2,
   Award, Phone, Calendar, ArrowRight, Star
@@ -15,8 +17,8 @@ import {
 export const ServiceDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { services, getServices } = useServices(true);
-  const { providers, getProviders } = useProviders(true);
+  const { services } = useServices(true);
+  const { providers } = useProviders(true);
   const { setDraft } = useBookings();
   const { trackItem } = useRecentlyAccessed();
 
@@ -25,26 +27,50 @@ export const ServiceDetailsPage = () => {
   const [selectedSlot, setSelectedSlot] = useState("09:00 AM - 10:30 AM");
 
   useEffect(() => {
-    if (services.length > 0) {
-      const found = services.find(s => s.serviceId === id) || services[0];
-      setService(found);
-      const prov = providers.find(p => p.providerId === found.providerId) || providers[0];
-      setProvider(prov);
-      if (found.availableSlots && found.availableSlots.length > 0) {
-        setSelectedSlot(found.availableSlots[0]);
+    let isMounted = true;
+    async function loadServiceDetails() {
+      if (!id) return;
+
+      let found = services.find(
+        s => s.serviceId === id ||
+             (s._id && s._id.toString() === id.toString()) ||
+             (s.serviceName && s.serviceName.toLowerCase() === id.toLowerCase()) ||
+             (s.name && s.name.toLowerCase() === id.toLowerCase())
+      );
+
+      if (!found) {
+        try {
+          found = await serviceService.getServiceById(id);
+        } catch (err) {
+          console.warn('[ServiceDetailsPage] API getServiceById failed:', err);
+        }
       }
 
-      // Track live access for customer
-      trackItem({
-        id: found.serviceId,
-        type: 'Service',
-        title: found.serviceName,
-        subtitle: prov?.shopName || found.category,
-        path: `/services/${found.serviceId}`,
-        price: found.basePrice,
-        rating: found.rating
-      });
+      if (isMounted && found) {
+        setService(found);
+
+        const prov = findEligibleProviderForService(found, providers);
+        setProvider(prov);
+
+        if (found.availableSlots && found.availableSlots.length > 0) {
+          setSelectedSlot(found.availableSlots[0]);
+        }
+
+        // Track live access for customer
+        trackItem({
+          id: found.serviceId || found._id,
+          type: 'Service',
+          title: found.serviceName || found.name,
+          subtitle: prov?.shopName || found.category,
+          path: `/services/${found.serviceId || found._id}`,
+          price: found.basePrice || found.startingPrice,
+          rating: found.rating
+        });
+      }
     }
+
+    loadServiceDetails();
+    return () => { isMounted = false; };
   }, [id, services, providers, trackItem]);
 
   if (!service) {
@@ -114,7 +140,7 @@ export const ServiceDetailsPage = () => {
                     "30-Day Work Warranty"
                   ]).map((b, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <CheckCircle size={16} color="var(--success-text)" />
+                      <CheckCircle2 size={16} color="var(--success-text)" />
                       <span>{b}</span>
                     </div>
                   ))}
@@ -122,7 +148,7 @@ export const ServiceDetailsPage = () => {
               </Card>
 
               {/* Assigned Commercial Workshop Section */}
-              {provider && (
+              {provider ? (
                 <Card style={{ marginBottom: '26px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -131,7 +157,7 @@ export const ServiceDetailsPage = () => {
                       </div>
                       <div>
                         <h4 style={{ fontSize: '1.1rem', fontWeight: 800 }}>{provider.shopName}</h4>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--primary-700)', fontWeight: 600 }}>{provider.specialization}</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--primary-700)', fontWeight: 600 }}>{Array.isArray(provider.specialization) ? provider.specialization.join(', ') : provider.specialization}</span>
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
@@ -145,10 +171,17 @@ export const ServiceDetailsPage = () => {
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', fontSize: '0.86rem', color: 'var(--text-secondary)', background: 'var(--bg-muted)', padding: '12px 14px', borderRadius: 'var(--radius-md)' }}>
-                    <div><strong>Location:</strong> {provider.location}</div>
-                    <div><strong>Service Radius:</strong> {provider.serviceArea}</div>
+                    <div><strong>Location:</strong> {provider.location || provider.city}</div>
+                    <div><strong>Service Radius:</strong> {provider.serviceArea || '15 km radius'}</div>
                     <div><strong>Hours:</strong> {provider.workingHours}</div>
                     <div><strong>Experience:</strong> {provider.experience}</div>
+                  </div>
+                </Card>
+              ) : (
+                <Card style={{ marginBottom: '26px', background: '#fffbe8', border: '1px solid #fde047' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#854d0e', fontWeight: 700, fontSize: '0.92rem' }}>
+                    <Building2 size={20} color="#ca8a04" />
+                    <span>No verified providers are currently available for this service.</span>
                   </div>
                 </Card>
               )}
